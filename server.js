@@ -16,17 +16,6 @@ const MIME = {
   '.svg': 'image/svg+xml',
 };
 
-// ----------------- SSE clients -----------------
-const sseClients = new Set();
-
-function broadcastUpdate() {
-  const data = readData();
-  const message = `data: ${JSON.stringify(data)}\n\n`;
-  sseClients.forEach((client) => {
-    client.write(message);
-  });
-}
-
 // ----------------- Data helpers -----------------
 
 function getDefaultZones() {
@@ -43,76 +32,30 @@ function getDefaultZones() {
       id: 'zone_9',
       name: 'Зона 9',
       bundles: [
-        '101-106',
-        '111-115',
-        '121-125',
-        '131-134',
-        '141-146',
-        '151-156',
-        '161-166',
-        '171-175',
-        '181-185',
-        '201-204',
-        '211-213',
-        '221-228',
-        '231-236',
-        '241-246',
-        '251-256',
-        '261-266',
-        '301-306',
-        '311-314',
+        '101-106', '111-115', '121-125', '131-134', '141-146',
+        '151-156', '161-166', '171-175', '181-185',
+        '201-204', '211-213', '221-228', '231-236',
+        '241-246', '251-256', '261-266', '301-306', '311-314',
       ],
     },
     {
       id: 'zone_10',
       name: 'Зона 10',
       bundles: [
-        '101-106',
-        '107-110',
-        '111-116',
-        '121-125',
-        '131-136',
-        '141-143',
-        '201-209',
-        '211',
-        '221-223',
-        '231-234',
-        '241-246',
-        '251-256',
-        '261-265',
-        '271-274',
-        '281-289',
-        '301-304',
-        '311-316',
-        '321-326',
-        '331-334',
-        '341-346',
-        '351-356',
-        '361-366',
-        '371-375',
-        '381-382',
-        '391-392',
+        '101-106', '107-110', '111-116', '121-125', '131-136', '141-143',
+        '201-209', '211', '221-223', '231-234', '241-246',
+        '251-256', '261-265', '271-274', '281-289',
+        '301-304', '311-316', '321-326', '331-334',
+        '341-346', '351-356', '361-366', '371-375', '381-382', '391-392',
       ],
     },
     {
       id: 'zone_11',
       name: 'Зона 11',
       bundles: [
-        '111-116',
-        '121-124',
-        '131-134',
-        '141-144',
-        '151-155',
-        '161-165',
-        '211-215',
-        '221-224',
-        '231-236',
-        '241-246',
-        '251-255',
-        '261-265',
-        '271-275',
-        '281-285',
-        '291-293',
+        '111-116', '121-124', '131-134', '141-144', '151-155', '161-165',
+        '211-215', '221-224', '231-236', '241-246',
+        '251-255', '261-265', '271-275', '281-285', '291-293',
       ],
     },
     { id: 'zone_12', name: 'Зона 12', bundles: ['101-106', '111-116', '121-125', '131-134', '141-144', '151-156', '161-166'] },
@@ -129,7 +72,6 @@ function readData() {
     if (!parsed.zones || !parsed.state) throw new Error('Invalid data file');
     return parsed;
   } catch {
-    // Ініціалізація дефолтними зонами
     const initial = { zones: getDefaultZones(), state: {} };
     fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2), 'utf8');
     return initial;
@@ -174,23 +116,7 @@ const server = http.createServer(async (req, res) => {
   if (req.url.startsWith('/api/')) {
     const method = req.method || 'GET';
 
-    // SSE endpoint for real-time updates
-    if (req.url === '/api/events' && method === 'GET') {
-      res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'Access-Control-Allow-Origin': '*',
-      });
-      res.write(':ok\n\n');
-      sseClients.add(res);
-      req.on('close', () => {
-        sseClients.delete(res);
-      });
-      return;
-    }
-
-    // CORS для возможного будущего хостинга
+    // CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -215,7 +141,6 @@ const server = http.createServer(async (req, res) => {
           return;
         }
         const data = readData();
-        // Сохраняем комментарий, если он уже есть
         const existingComment = data.state[bundleId]?.comment || '';
         data.state[bundleId] = { 
           personName: String(personName).trim(), 
@@ -223,7 +148,6 @@ const server = http.createServer(async (req, res) => {
           comment: existingComment
         };
         writeData(data);
-        broadcastUpdate();
         sendJson(res, 200, { ok: true });
       } catch (e) {
         sendJson(res, 500, { error: 'Failed to take key' });
@@ -240,15 +164,12 @@ const server = http.createServer(async (req, res) => {
           return;
         }
         const data = readData();
-        // Сохраняем комментарий перед удалением
         const comment = data.state[bundleId]?.comment || '';
         delete data.state[bundleId];
-        // Если есть комментарий - сохраняем его
         if (comment) {
           data.state[bundleId] = { comment };
         }
         writeData(data);
-        broadcastUpdate();
         sendJson(res, 200, { ok: true });
       } catch (e) {
         sendJson(res, 500, { error: 'Failed to return key' });
@@ -265,16 +186,13 @@ const server = http.createServer(async (req, res) => {
           return;
         }
         const data = readData();
-        // Если связка взята - обновляем комментарий
         if (data.state[bundleId]) {
           data.state[bundleId].comment = comment ? String(comment).trim() : '';
           writeData(data);
         } else {
-          // Если связка свободна - создаём запись только с комментарием
           data.state[bundleId] = { comment: comment ? String(comment).trim() : '' };
           writeData(data);
         }
-        broadcastUpdate();
         sendJson(res, 200, { ok: true });
       } catch (e) {
         sendJson(res, 500, { error: 'Failed to set comment' });
@@ -294,7 +212,6 @@ const server = http.createServer(async (req, res) => {
         const id = 'zone_' + Date.now();
         data.zones.push({ id, name, bundles: [] });
         writeData(data);
-        broadcastUpdate();
         sendJson(res, 200, { ok: true, id });
       } catch {
         sendJson(res, 500, { error: 'Failed to add zone' });
@@ -321,7 +238,6 @@ const server = http.createServer(async (req, res) => {
           zone.bundles.push(range);
           zone.bundles.sort((a, b) => String(a).localeCompare(b, 'uk', { numeric: true }));
           writeData(data);
-          broadcastUpdate();
         }
         sendJson(res, 200, { ok: true });
       } catch {
@@ -358,8 +274,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log('');
-  console.log('  Сайт запущено: http://localhost:' + PORT);
-  console.log('  Зупинити: Ctrl+C');
-  console.log('');
+  console.log('Server running on port ' + PORT);
 });
