@@ -4,11 +4,7 @@ const path = require('path');
 
 const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
-
-// Database file path - use Railway data directory if available
-const dbPath = process.env.RAILWAY 
-  ? '/data/keytracker.db'
-  : path.join(ROOT, 'keytracker.db');
+const DATA_FILE = path.join(ROOT, 'data.json');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -20,72 +16,15 @@ const MIME = {
   '.svg': 'image/svg+xml',
 };
 
-// ----------------- SQLite Database (sql.js) -----------------
-let db = null;
-let SQL = null;
+// ----------------- SSE clients -----------------
+const sseClients = new Set();
 
-async function initDatabase() {
-  const initSqlJs = require('sql.js');
-  SQL = await initSqlJs();
-  
-  // Load existing database or create new one
-  try {
-    if (fs.existsSync(dbPath)) {
-      const fileBuffer = fs.readFileSync(dbPath);
-      db = new SQL.Database(fileBuffer);
-      console.log('Loaded existing database:', dbPath);
-    } else {
-      db = new SQL.Database();
-      console.log('Created new database');
-    }
-  } catch (e) {
-    console.error('Error loading DB, creating new:', e);
-    db = new SQL.Database();
-  }
-  
-  // Create tables
-  db.run(`
-    CREATE TABLE IF NOT EXISTS zones (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      bundles TEXT NOT NULL DEFAULT '[]'
-    )
-  `);
-  
-  db.run(`
-    CREATE TABLE IF NOT EXISTS state (
-      bundle_id TEXT PRIMARY KEY,
-      person_name TEXT,
-      taken_at INTEGER,
-      comment TEXT DEFAULT ''
-    )
-  `);
-  
-  // Check if zones exist, if not - add default zones
-  const result = db.exec('SELECT COUNT(*) as count FROM zones');
-  const zoneCount = result.length > 0 ? result[0].values[0][0] : 0;
-  
-  if (zoneCount === 0) {
-    const defaultZones = getDefaultZones();
-    const stmt = db.prepare('INSERT INTO zones (id, name, bundles) VALUES (?, ?, ?)');
-    defaultZones.forEach(z => {
-      stmt.run([z.id, z.name, JSON.stringify(z.bundles)]);
-    });
-    stmt.free();
-    saveDatabase();
-  }
-  
-  console.log('SQLite database initialized:', dbPath);
-}
-
-function saveDatabase() {
-  try {
-    const data = db.export();
-    const buffer = Buffer.from(data);
-    fs.writeFileSync(dbPath, buffer);
-  } catch (e) {
-    console.error('Error saving database:', e);
-  }
+function broadcastUpdate() {
+  const data = readData();
+  const message = `data: ${JSON.stringify(data)}\n\n`;
+  sseClients.forEach((client) => {
+    client.write(message);
+  });
 }
 
 // ----------------- Data helpers -----------------
@@ -104,30 +43,76 @@ function getDefaultZones() {
       id: 'zone_9',
       name: 'Зона 9',
       bundles: [
-        '101-106', '111-115', '121-125', '131-134', '141-146',
-        '151-156', '161-166', '171-175', '181-185',
-        '201-204', '211-213', '221-228', '231-236',
-        '241-246', '251-256', '261-266', '301-306', '311-314',
+        '101-106',
+        '111-115',
+        '121-125',
+        '131-134',
+        '141-146',
+        '151-156',
+        '161-166',
+        '171-175',
+        '181-185',
+        '201-204',
+        '211-213',
+        '221-228',
+        '231-236',
+        '241-246',
+        '251-256',
+        '261-266',
+        '301-306',
+        '311-314',
       ],
     },
     {
       id: 'zone_10',
       name: 'Зона 10',
       bundles: [
-        '101-106', '107-110', '111-116', '121-125', '131-136', '141-143',
-        '201-209', '211', '221-223', '231-234', '241-246',
-        '251-256', '261-265', '271-274', '281-289',
-        '301-304', '311-316', '321-326', '331-334',
-        '341-346', '351-356', '361-366', '371-375', '381-382', '391-392',
+        '101-106',
+        '107-110',
+        '111-116',
+        '121-125',
+        '131-136',
+        '141-143',
+        '201-209',
+        '211',
+        '221-223',
+        '231-234',
+        '241-246',
+        '251-256',
+        '261-265',
+        '271-274',
+        '281-289',
+        '301-304',
+        '311-316',
+        '321-326',
+        '331-334',
+        '341-346',
+        '351-356',
+        '361-366',
+        '371-375',
+        '381-382',
+        '391-392',
       ],
     },
     {
       id: 'zone_11',
       name: 'Зона 11',
       bundles: [
-        '111-116', '121-124', '131-134', '141-144', '151-155', '161-165',
-        '211-215', '221-224', '231-236', '241-246',
-        '251-255', '261-265', '271-275', '281-285', '291-293',
+        '111-116',
+        '121-124',
+        '131-134',
+        '141-144',
+        '151-155',
+        '161-165',
+        '211-215',
+        '221-224',
+        '231-236',
+        '241-246',
+        '251-255',
+        '261-265',
+        '271-275',
+        '281-285',
+        '291-293',
       ],
     },
     { id: 'zone_12', name: 'Зона 12', bundles: ['101-106', '111-116', '121-125', '131-134', '141-144', '151-156', '161-166'] },
@@ -137,32 +122,22 @@ function getDefaultZones() {
   ];
 }
 
-function getState() {
-  const result = db.exec('SELECT bundle_id, person_name, taken_at, comment FROM state');
-  const state = {};
-  if (result.length > 0) {
-    result[0].values.forEach(row => {
-      const [bundle_id, person_name, taken_at, comment] = row;
-      const entry = {};
-      if (person_name) entry.personName = person_name;
-      if (taken_at) entry.takenAt = taken_at;
-      if (comment) entry.comment = comment;
-      if (Object.keys(entry).length > 0) {
-        state[bundle_id] = entry;
-      }
-    });
+function readData() {
+  try {
+    const raw = fs.readFileSync(DATA_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (!parsed.zones || !parsed.state) throw new Error('Invalid data file');
+    return parsed;
+  } catch {
+    // Ініціалізація дефолтними зонами
+    const initial = { zones: getDefaultZones(), state: {} };
+    fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2), 'utf8');
+    return initial;
   }
-  return state;
 }
 
-function getZones() {
-  const result = db.exec('SELECT id, name, bundles FROM zones');
-  if (result.length === 0) return [];
-  return result[0].values.map(row => ({
-    id: row[0],
-    name: row[1],
-    bundles: JSON.parse(row[2]),
-  }));
+function writeData(data) {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
 }
 
 function parseBody(req) {
@@ -192,30 +167,9 @@ function sendJson(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
-// ----------------- SSE clients -----------------
-const sseClients = new Set();
-
-function broadcastUpdate() {
-  const data = {
-    zones: getZones(),
-    state: getState(),
-  };
-  const message = `data: ${JSON.stringify(data)}\n\n`;
-  sseClients.forEach((client) => {
-    client.write(message);
-  });
-}
-
 // ----------------- HTTP server -----------------
 
 const server = http.createServer(async (req, res) => {
-  // Wait for database to be ready
-  if (!db) {
-    res.writeHead(503, { 'Content-Type': 'text/plain' });
-    res.end('Database not ready');
-    return;
-  }
-
   // API endpoints
   if (req.url.startsWith('/api/')) {
     const method = req.method || 'GET';
@@ -236,7 +190,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // CORS
+    // CORS для возможного будущего хостинга
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -247,10 +201,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.url === '/api/state' && method === 'GET') {
-      const data = {
-        zones: getZones(),
-        state: getState(),
-      };
+      const data = readData();
       sendJson(res, 200, data);
       return;
     }
@@ -263,23 +214,18 @@ const server = http.createServer(async (req, res) => {
           sendJson(res, 400, { error: 'bundleId and personName are required' });
           return;
         }
-        
-        // Get existing comment if any
-        const existingResult = db.exec('SELECT comment FROM state WHERE bundle_id = ?', [bundleId]);
-        const existingComment = (existingResult.length > 0 && existingResult[0].values.length > 0) 
-          ? existingResult[0].values[0][0] || '' 
-          : '';
-        
-        // Insert or replace
-        db.run('DELETE FROM state WHERE bundle_id = ?', [bundleId]);
-        db.run('INSERT INTO state (bundle_id, person_name, taken_at, comment) VALUES (?, ?, ?, ?)', 
-          [bundleId, String(personName).trim(), Date.now(), existingComment]);
-        
-        saveDatabase();
+        const data = readData();
+        // Сохраняем комментарий, если он уже есть
+        const existingComment = data.state[bundleId]?.comment || '';
+        data.state[bundleId] = { 
+          personName: String(personName).trim(), 
+          takenAt: Date.now(),
+          comment: existingComment
+        };
+        writeData(data);
         broadcastUpdate();
         sendJson(res, 200, { ok: true });
       } catch (e) {
-        console.error('Take error:', e);
         sendJson(res, 500, { error: 'Failed to take key' });
       }
       return;
@@ -293,25 +239,18 @@ const server = http.createServer(async (req, res) => {
           sendJson(res, 400, { error: 'bundleId is required' });
           return;
         }
-        
-        // Get existing comment before delete
-        const existingResult = db.exec('SELECT comment FROM state WHERE bundle_id = ?', [bundleId]);
-        const comment = (existingResult.length > 0 && existingResult[0].values.length > 0)
-          ? existingResult[0].values[0][0] || ''
-          : '';
-        
-        // If there's a comment, update row, otherwise delete
+        const data = readData();
+        // Сохраняем комментарий перед удалением
+        const comment = data.state[bundleId]?.comment || '';
+        delete data.state[bundleId];
+        // Если есть комментарий - сохраняем его
         if (comment) {
-          db.run('UPDATE state SET person_name = NULL, taken_at = NULL WHERE bundle_id = ?', [bundleId]);
-        } else {
-          db.run('DELETE FROM state WHERE bundle_id = ?', [bundleId]);
+          data.state[bundleId] = { comment };
         }
-        
-        saveDatabase();
+        writeData(data);
         broadcastUpdate();
         sendJson(res, 200, { ok: true });
       } catch (e) {
-        console.error('Return error:', e);
         sendJson(res, 500, { error: 'Failed to return key' });
       }
       return;
@@ -325,21 +264,19 @@ const server = http.createServer(async (req, res) => {
           sendJson(res, 400, { error: 'bundleId is required' });
           return;
         }
-        
-        const commentText = comment ? String(comment).trim() : '';
-        const existingResult = db.exec('SELECT * FROM state WHERE bundle_id = ?', [bundleId]);
-        
-        if (existingResult.length > 0 && existingResult[0].values.length > 0) {
-          db.run('UPDATE state SET comment = ? WHERE bundle_id = ?', [commentText, bundleId]);
+        const data = readData();
+        // Если связка взята - обновляем комментарий
+        if (data.state[bundleId]) {
+          data.state[bundleId].comment = comment ? String(comment).trim() : '';
+          writeData(data);
         } else {
-          db.run('INSERT INTO state (bundle_id, comment) VALUES (?, ?)', [bundleId, commentText]);
+          // Если связка свободна - создаём запись только с комментарием
+          data.state[bundleId] = { comment: comment ? String(comment).trim() : '' };
+          writeData(data);
         }
-        
-        saveDatabase();
         broadcastUpdate();
         sendJson(res, 200, { ok: true });
       } catch (e) {
-        console.error('Comment error:', e);
         sendJson(res, 500, { error: 'Failed to set comment' });
       }
       return;
@@ -353,13 +290,13 @@ const server = http.createServer(async (req, res) => {
           sendJson(res, 400, { error: 'name is required' });
           return;
         }
+        const data = readData();
         const id = 'zone_' + Date.now();
-        db.run('INSERT INTO zones (id, name, bundles) VALUES (?, ?, ?)', [id, name, '[]']);
-        saveDatabase();
+        data.zones.push({ id, name, bundles: [] });
+        writeData(data);
         broadcastUpdate();
         sendJson(res, 200, { ok: true, id });
-      } catch (e) {
-        console.error('Add zone error:', e);
+      } catch {
         sendJson(res, 500, { error: 'Failed to add zone' });
       }
       return;
@@ -374,24 +311,20 @@ const server = http.createServer(async (req, res) => {
           sendJson(res, 400, { error: 'zoneId and range are required' });
           return;
         }
-        
-        const zoneResult = db.exec('SELECT bundles FROM zones WHERE id = ?', [zoneId]);
-        if (zoneResult.length === 0 || zoneResult[0].values.length === 0) {
+        const data = readData();
+        const zone = data.zones.find((z) => z.id === zoneId);
+        if (!zone) {
           sendJson(res, 404, { error: 'Zone not found' });
           return;
         }
-        
-        const bundles = JSON.parse(zoneResult[0].values[0][0]);
-        if (!bundles.includes(range)) {
-          bundles.push(range);
-          bundles.sort((a, b) => String(a).localeCompare(b, 'uk', { numeric: true }));
-          db.run('UPDATE zones SET bundles = ? WHERE id = ?', [JSON.stringify(bundles), zoneId]);
-          saveDatabase();
+        if (!zone.bundles.includes(range)) {
+          zone.bundles.push(range);
+          zone.bundles.sort((a, b) => String(a).localeCompare(b, 'uk', { numeric: true }));
+          writeData(data);
           broadcastUpdate();
         }
         sendJson(res, 200, { ok: true });
-      } catch (e) {
-        console.error('Add bundle error:', e);
+      } catch {
         sendJson(res, 500, { error: 'Failed to add bundle' });
       }
       return;
@@ -424,16 +357,9 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-// Initialize database and start server
-initDatabase().then(() => {
-  server.listen(PORT, () => {
-    console.log('');
-    console.log('  Сайт запущено: http://localhost:' + PORT);
-    console.log('  База данных: SQLite (' + dbPath + ')');
-    console.log('  Зупинити: Ctrl+C');
-    console.log('');
-  });
-}).catch(err => {
-  console.error('Failed to initialize database:', err);
-  process.exit(1);
+server.listen(PORT, () => {
+  console.log('');
+  console.log('  Сайт запущено: http://localhost:' + PORT);
+  console.log('  Зупинити: Ctrl+C');
+  console.log('');
 });
