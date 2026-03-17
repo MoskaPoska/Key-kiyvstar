@@ -2,9 +2,15 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
-const DATA_FILE = path.join(ROOT, 'data.json');
+
+// Database file path - use Railway volume if available
+const dbPath = process.env.RAILWAY_VOLUME_MOUNT_PATH 
+  ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'keytracker.db')
+  : path.join(ROOT, 'keytracker.db');
+
+const DB_FILE = dbPath;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -16,15 +22,41 @@ const MIME = {
   '.svg': 'image/svg+xml',
 };
 
-// ----------------- SSE clients -----------------
-const sseClients = new Set();
+// ----------------- SQLite Database -----------------
+let db = null;
 
-function broadcastUpdate() {
-  const data = readData();
-  const message = `data: ${JSON.stringify(data)}\n\n`;
-  sseClients.forEach((client) => {
-    client.write(message);
-  });
+function initDatabase() {
+  // Use better-sqlite3 for synchronous API
+  const Database = require('better-sqlite3');
+  db = new Database(DB_FILE);
+  
+  // Create tables
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS zones (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      bundles TEXT NOT NULL DEFAULT '[]'
+    );
+    
+    CREATE TABLE IF NOT EXISTS state (
+      bundle_id TEXT PRIMARY KEY,
+      person_name TEXT,
+      taken_at INTEGER,
+      comment TEXT DEFAULT ''
+    );
+  `);
+  
+  // Check if zones exist, if not - add default zones
+  const zoneCount = db.prepare('SELECT COUNT(*) as count FROM zones').get().count;
+  if (zoneCount === 0) {
+    const defaultZones = getDefaultZones();
+    const insertZone = db.prepare('INSERT INTO zones (id, name, bundles) VALUES (?, ?, ?)');
+    defaultZones.forEach(z => {
+      insertZone.run(z.id, z.name, JSON.stringify(z.bundles));
+    });
+  }
+  
+  console.log('SQLite database initialized:', DB_FILE);
 }
 
 // ----------------- Data helpers -----------------
@@ -43,76 +75,30 @@ function getDefaultZones() {
       id: 'zone_9',
       name: 'Зона 9',
       bundles: [
-        '101-106',
-        '111-115',
-        '121-125',
-        '131-134',
-        '141-146',
-        '151-156',
-        '161-166',
-        '171-175',
-        '181-185',
-        '201-204',
-        '211-213',
-        '221-228',
-        '231-236',
-        '241-246',
-        '251-256',
-        '261-266',
-        '301-306',
-        '311-314',
+        '101-106', '111-115', '121-125', '131-134', '141-146',
+        '151-156', '161-166', '171-175', '181-185',
+        '201-204', '211-213', '221-228', '231-236',
+        '241-246', '251-256', '261-266', '301-306', '311-314',
       ],
     },
     {
       id: 'zone_10',
       name: 'Зона 10',
       bundles: [
-        '101-106',
-        '107-110',
-        '111-116',
-        '121-125',
-        '131-136',
-        '141-143',
-        '201-209',
-        '211',
-        '221-223',
-        '231-234',
-        '241-246',
-        '251-256',
-        '261-265',
-        '271-274',
-        '281-289',
-        '301-304',
-        '311-316',
-        '321-326',
-        '331-334',
-        '341-346',
-        '351-356',
-        '361-366',
-        '371-375',
-        '381-382',
-        '391-392',
+        '101-106', '107-110', '111-116', '121-125', '131-136', '141-143',
+        '201-209', '211', '221-223', '231-234', '241-246',
+        '251-256', '261-265', '271-274', '281-289',
+        '301-304', '311-316', '321-326', '331-334',
+        '341-346', '351-356', '361-366', '371-375', '381-382', '391-392',
       ],
     },
     {
       id: 'zone_11',
       name: 'Зона 11',
       bundles: [
-        '111-116',
-        '121-124',
-        '131-134',
-        '141-144',
-        '151-155',
-        '161-165',
-        '211-215',
-        '221-224',
-        '231-236',
-        '241-246',
-        '251-255',
-        '261-265',
-        '271-275',
-        '281-285',
-        '291-293',
+        '111-116', '121-124', '131-134', '141-144', '151-155', '161-165',
+        '211-215', '221-224', '231-236', '241-246',
+        '251-255', '261-265', '271-275', '281-285', '291-293',
       ],
     },
     { id: 'zone_12', name: 'Зона 12', bundles: ['101-106', '111-116', '121-125', '131-134', '141-144', '151-156', '161-166'] },
@@ -122,22 +108,28 @@ function getDefaultZones() {
   ];
 }
 
-function readData() {
-  try {
-    const raw = fs.readFileSync(DATA_FILE, 'utf8');
-    const parsed = JSON.parse(raw);
-    if (!parsed.zones || !parsed.state) throw new Error('Invalid data file');
-    return parsed;
-  } catch {
-    // Ініціалізація дефолтними зонами
-    const initial = { zones: getDefaultZones(), state: {} };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2), 'utf8');
-    return initial;
-  }
+function getState() {
+  const rows = db.prepare('SELECT bundle_id, person_name, taken_at, comment FROM state').all();
+  const state = {};
+  rows.forEach(row => {
+    const entry = {};
+    if (row.person_name) entry.personName = row.person_name;
+    if (row.taken_at) entry.takenAt = row.taken_at;
+    if (row.comment) entry.comment = row.comment;
+    if (Object.keys(entry).length > 0) {
+      state[row.bundle_id] = entry;
+    }
+  });
+  return state;
 }
 
-function writeData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+function getZones() {
+  const rows = db.prepare('SELECT id, name, bundles FROM zones').all();
+  return rows.map(row => ({
+    id: row.id,
+    name: row.name,
+    bundles: JSON.parse(row.bundles),
+  }));
 }
 
 function parseBody(req) {
@@ -167,6 +159,20 @@ function sendJson(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
+// ----------------- SSE clients -----------------
+const sseClients = new Set();
+
+function broadcastUpdate() {
+  const data = {
+    zones: getZones(),
+    state: getState(),
+  };
+  const message = `data: ${JSON.stringify(data)}\n\n`;
+  sseClients.forEach((client) => {
+    client.write(message);
+  });
+}
+
 // ----------------- HTTP server -----------------
 
 const server = http.createServer(async (req, res) => {
@@ -182,7 +188,6 @@ const server = http.createServer(async (req, res) => {
         'Connection': 'keep-alive',
         'Access-Control-Allow-Origin': '*',
       });
-      // Send initial comment to keep connection alive
       res.write(':ok\n\n');
       sseClients.add(res);
       req.on('close', () => {
@@ -191,7 +196,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // CORS для возможного будущего хостинга
+    // CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -202,7 +207,10 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.url === '/api/state' && method === 'GET') {
-      const data = readData();
+      const data = {
+        zones: getZones(),
+        state: getState(),
+      };
       sendJson(res, 200, data);
       return;
     }
@@ -215,18 +223,24 @@ const server = http.createServer(async (req, res) => {
           sendJson(res, 400, { error: 'bundleId and personName are required' });
           return;
         }
-        const data = readData();
-        // Сохраняем комментарий, если он уже есть
-        const existingComment = data.state[bundleId]?.comment || '';
-        data.state[bundleId] = { 
-          personName: String(personName).trim(), 
-          takenAt: Date.now(),
-          comment: existingComment
-        };
-        writeData(data);
+        
+        // Get existing comment if any
+        const existing = db.prepare('SELECT comment FROM state WHERE bundle_id = ?').get(bundleId);
+        const existingComment = existing ? existing.comment : '';
+        
+        db.prepare(`
+          INSERT INTO state (bundle_id, person_name, taken_at, comment)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(bundle_id) DO UPDATE SET
+            person_name = excluded.person_name,
+            taken_at = excluded.taken_at,
+            comment = excluded.comment
+        `).run(bundleId, String(personName).trim(), Date.now(), existingComment);
+        
         broadcastUpdate();
         sendJson(res, 200, { ok: true });
       } catch (e) {
+        console.error('Take error:', e);
         sendJson(res, 500, { error: 'Failed to take key' });
       }
       return;
@@ -240,18 +254,22 @@ const server = http.createServer(async (req, res) => {
           sendJson(res, 400, { error: 'bundleId is required' });
           return;
         }
-        const data = readData();
-        // Сохраняем комментарий перед удалением
-        const comment = data.state[bundleId]?.comment || '';
-        delete data.state[bundleId];
-        // Если есть комментарий - сохраняем его
+        
+        // Get existing comment before delete
+        const existing = db.prepare('SELECT comment FROM state WHERE bundle_id = ?').get(bundleId);
+        const comment = existing ? existing.comment : '';
+        
+        // If there's a comment, keep the row with just the comment, otherwise delete
         if (comment) {
-          data.state[bundleId] = { comment };
+          db.prepare('UPDATE state SET person_name = NULL, taken_at = NULL WHERE bundle_id = ?').run(bundleId);
+        } else {
+          db.prepare('DELETE FROM state WHERE bundle_id = ?').run(bundleId);
         }
-        writeData(data);
+        
         broadcastUpdate();
         sendJson(res, 200, { ok: true });
       } catch (e) {
+        console.error('Return error:', e);
         sendJson(res, 500, { error: 'Failed to return key' });
       }
       return;
@@ -265,19 +283,20 @@ const server = http.createServer(async (req, res) => {
           sendJson(res, 400, { error: 'bundleId is required' });
           return;
         }
-        const data = readData();
-        // Если связка взята - обновляем комментарий
-        if (data.state[bundleId]) {
-          data.state[bundleId].comment = comment ? String(comment).trim() : '';
-          writeData(data);
+        
+        const commentText = comment ? String(comment).trim() : '';
+        const existing = db.prepare('SELECT * FROM state WHERE bundle_id = ?').get(bundleId);
+        
+        if (existing) {
+          db.prepare('UPDATE state SET comment = ? WHERE bundle_id = ?').run(commentText, bundleId);
         } else {
-          // Если связка свободна - создаём запись только с комментарием
-          data.state[bundleId] = { comment: comment ? String(comment).trim() : '' };
-          writeData(data);
+          db.prepare('INSERT INTO state (bundle_id, comment) VALUES (?, ?)').run(bundleId, commentText);
         }
+        
         broadcastUpdate();
         sendJson(res, 200, { ok: true });
       } catch (e) {
+        console.error('Comment error:', e);
         sendJson(res, 500, { error: 'Failed to set comment' });
       }
       return;
@@ -291,13 +310,12 @@ const server = http.createServer(async (req, res) => {
           sendJson(res, 400, { error: 'name is required' });
           return;
         }
-        const data = readData();
         const id = 'zone_' + Date.now();
-        data.zones.push({ id, name, bundles: [] });
-        writeData(data);
+        db.prepare('INSERT INTO zones (id, name, bundles) VALUES (?, ?, ?)').run(id, name, '[]');
         broadcastUpdate();
         sendJson(res, 200, { ok: true, id });
-      } catch {
+      } catch (e) {
+        console.error('Add zone error:', e);
         sendJson(res, 500, { error: 'Failed to add zone' });
       }
       return;
@@ -312,20 +330,23 @@ const server = http.createServer(async (req, res) => {
           sendJson(res, 400, { error: 'zoneId and range are required' });
           return;
         }
-        const data = readData();
-        const zone = data.zones.find((z) => z.id === zoneId);
+        
+        const zone = db.prepare('SELECT bundles FROM zones WHERE id = ?').get(zoneId);
         if (!zone) {
           sendJson(res, 404, { error: 'Zone not found' });
           return;
         }
-        if (!zone.bundles.includes(range)) {
-          zone.bundles.push(range);
-          zone.bundles.sort((a, b) => String(a).localeCompare(b, 'uk', { numeric: true }));
-          writeData(data);
+        
+        const bundles = JSON.parse(zone.bundles);
+        if (!bundles.includes(range)) {
+          bundles.push(range);
+          bundles.sort((a, b) => String(a).localeCompare(b, 'uk', { numeric: true }));
+          db.prepare('UPDATE zones SET bundles = ? WHERE id = ?').run(JSON.stringify(bundles), zoneId);
+          broadcastUpdate();
         }
-        broadcastUpdate();
         sendJson(res, 200, { ok: true });
-      } catch {
+      } catch (e) {
+        console.error('Add bundle error:', e);
         sendJson(res, 500, { error: 'Failed to add bundle' });
       }
       return;
@@ -358,9 +379,13 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
+// Initialize database and start server
+initDatabase();
+
 server.listen(PORT, () => {
   console.log('');
   console.log('  Сайт запущено: http://localhost:' + PORT);
+  console.log('  База данных: SQLite (keytracker.db)');
   console.log('  Зупинити: Ctrl+C');
   console.log('');
 });
