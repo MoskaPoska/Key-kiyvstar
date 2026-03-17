@@ -16,6 +16,17 @@ const MIME = {
   '.svg': 'image/svg+xml',
 };
 
+// ----------------- SSE clients -----------------
+const sseClients = new Set();
+
+function broadcastUpdate() {
+  const data = readData();
+  const message = `data: ${JSON.stringify(data)}\n\n`;
+  sseClients.forEach((client) => {
+    client.write(message);
+  });
+}
+
 // ----------------- Data helpers -----------------
 
 function getDefaultZones() {
@@ -163,6 +174,23 @@ const server = http.createServer(async (req, res) => {
   if (req.url.startsWith('/api/')) {
     const method = req.method || 'GET';
 
+    // SSE endpoint for real-time updates
+    if (req.url === '/api/events' && method === 'GET') {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+      });
+      // Send initial comment to keep connection alive
+      res.write(':ok\n\n');
+      sseClients.add(res);
+      req.on('close', () => {
+        sseClients.delete(res);
+      });
+      return;
+    }
+
     // CORS для возможного будущего хостинга
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
@@ -196,6 +224,7 @@ const server = http.createServer(async (req, res) => {
           comment: existingComment
         };
         writeData(data);
+        broadcastUpdate();
         sendJson(res, 200, { ok: true });
       } catch (e) {
         sendJson(res, 500, { error: 'Failed to take key' });
@@ -220,6 +249,7 @@ const server = http.createServer(async (req, res) => {
           data.state[bundleId] = { comment };
         }
         writeData(data);
+        broadcastUpdate();
         sendJson(res, 200, { ok: true });
       } catch (e) {
         sendJson(res, 500, { error: 'Failed to return key' });
@@ -245,6 +275,7 @@ const server = http.createServer(async (req, res) => {
           data.state[bundleId] = { comment: comment ? String(comment).trim() : '' };
           writeData(data);
         }
+        broadcastUpdate();
         sendJson(res, 200, { ok: true });
       } catch (e) {
         sendJson(res, 500, { error: 'Failed to set comment' });
@@ -264,6 +295,7 @@ const server = http.createServer(async (req, res) => {
         const id = 'zone_' + Date.now();
         data.zones.push({ id, name, bundles: [] });
         writeData(data);
+        broadcastUpdate();
         sendJson(res, 200, { ok: true, id });
       } catch {
         sendJson(res, 500, { error: 'Failed to add zone' });
@@ -291,6 +323,7 @@ const server = http.createServer(async (req, res) => {
           zone.bundles.sort((a, b) => String(a).localeCompare(b, 'uk', { numeric: true }));
           writeData(data);
         }
+        broadcastUpdate();
         sendJson(res, 200, { ok: true });
       } catch {
         sendJson(res, 500, { error: 'Failed to add bundle' });

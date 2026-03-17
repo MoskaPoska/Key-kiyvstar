@@ -5,6 +5,33 @@
   let zones = [];
   let state = {}; // { "zone_4_101-1010": { personName: "Іван Петренко", takenAt: 1741234567890 } }
 
+  // SSE for real-time updates
+  let eventSource = null;
+
+  function connectSSE() {
+    if (eventSource) {
+      eventSource.close();
+    }
+    eventSource = new EventSource(API_BASE + '/api/events');
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        zones = Array.isArray(data.zones) ? data.zones : [];
+        state = data.state || {};
+        render();
+      } catch (e) {
+        console.error('Ошибка парсинга SSE данных', e);
+      }
+    };
+    eventSource.onerror = () => {
+      console.log('SSE ошибка, переподключение через 5 сек...');
+      setTimeout(connectSSE, 5000);
+    };
+  }
+
+  // Подключаем SSE при загрузке
+  connectSSE();
+
   function getBundleId(zoneId, tkdRange) {
     return zoneId + '_' + tkdRange;
   }
