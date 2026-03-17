@@ -10,8 +10,6 @@ const dbPath = process.env.RAILWAY_VOLUME_MOUNT_PATH
   ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'keytracker.db')
   : path.join(ROOT, 'keytracker.db');
 
-const DB_FILE = dbPath;
-
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -22,41 +20,72 @@ const MIME = {
   '.svg': 'image/svg+xml',
 };
 
-// ----------------- SQLite Database -----------------
+// ----------------- SQLite Database (sql.js) -----------------
 let db = null;
+let SQL = null;
 
-function initDatabase() {
-  // Use better-sqlite3 for synchronous API
-  const Database = require('better-sqlite3');
-  db = new Database(DB_FILE);
+async function initDatabase() {
+  const initSqlJs = require('sql.js');
+  SQL = await initSqlJs();
+  
+  // Load existing database or create new one
+  try {
+    if (fs.existsSync(dbPath)) {
+      const fileBuffer = fs.readFileSync(dbPath);
+      db = new SQL.Database(fileBuffer);
+      console.log('Loaded existing database:', dbPath);
+    } else {
+      db = new SQL.Database();
+      console.log('Created new database');
+    }
+  } catch (e) {
+    console.error('Error loading DB, creating new:', e);
+    db = new SQL.Database();
+  }
   
   // Create tables
-  db.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS zones (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       bundles TEXT NOT NULL DEFAULT '[]'
-    );
-    
+    )
+  `);
+  
+  db.run(`
     CREATE TABLE IF NOT EXISTS state (
       bundle_id TEXT PRIMARY KEY,
       person_name TEXT,
       taken_at INTEGER,
       comment TEXT DEFAULT ''
-    );
+    )
   `);
   
   // Check if zones exist, if not - add default zones
-  const zoneCount = db.prepare('SELECT COUNT(*) as count FROM zones').get().count;
+  const result = db.exec('SELECT COUNT(*) as count FROM zones');
+  const zoneCount = result.length > 0 ? result[0].values[0][0] : 0;
+  
   if (zoneCount === 0) {
     const defaultZones = getDefaultZones();
-    const insertZone = db.prepare('INSERT INTO zones (id, name, bundles) VALUES (?, ?, ?)');
+    const stmt = db.prepare('INSERT INTO zones (id, name, bundles) VALUES (?, ?, ?)');
     defaultZones.forEach(z => {
-      insertZone.run(z.id, z.name, JSON.stringify(z.bundles));
+      stmt.run([z.id, z.name, JSON.stringify(z.bundles)]);
     });
+    stmt.free();
+    saveDatabase();
   }
   
-  console.log('SQLite database initialized:', DB_FILE);
+  console.log('SQLite database initialized:', dbPath);
+}
+
+function saveDatabase() {
+  try {
+    const data = db.export();
+    const buffer = Buffer.from(data);
+    fs.writeFileSync(dbPath, buffer);
+  } catch (e) {
+    console.error('Error saving database:', e);
+  }
 }
 
 // ----------------- Data helpers -----------------
@@ -109,26 +138,30 @@ function getDefaultZones() {
 }
 
 function getState() {
-  const rows = db.prepare('SELECT bundle_id, person_name, taken_at, comment FROM state').all();
+  const result = db.exec('SELECT bundle_id, person_name, taken_at, comment FROM state');
   const state = {};
-  rows.forEach(row => {
-    const entry = {};
-    if (row.person_name) entry.personName = row.person_name;
-    if (row.taken_at) entry.takenAt = row.taken_at;
-    if (row.comment) entry.comment = row.comment;
-    if (Object.keys(entry).length > 0) {
-      state[row.bundle_id] = entry;
-    }
-  });
+  if (result.length > 0) {
+    result[0].values.forEach(row => {
+      const [bundle_id, person_name, taken_at, comment] = row;
+      const entry = {};
+      if (person_name) entry.personName = person_name;
+      if (taken_at) entry.takenAt = taken_at;
+      if (comment) entry.comment = comment;
+      if (Object.keys(entry).length > 0) {
+        state[bundle_id] = entry;
+      }
+    });
+  }
   return state;
 }
 
 function getZones() {
-  const rows = db.prepare('SELECT id, name, bundles FROM zones').all();
-  return rows.map(row => ({
-    id: row.id,
-    name: row.name,
-    bundles: JSON.parse(row.bundles),
+  const result = db.exec('SELECT id, name, bundles FROM zones');
+  if (result.length === 0) return [];
+  return result[0].values.map(row => ({
+    id: row[0],
+    name: row[1],
+    bundles: JSON.parse(row[2]),
   }));
 }
 
@@ -176,6 +209,13 @@ function broadcastUpdate() {
 // ----------------- HTTP server -----------------
 
 const server = http.createServer(async (req, res) => {
+  // Wait for database to be ready
+  if (!db) {
+    res.writeHead(503, { 'Content-Type': 'text/plain' });
+    res.end('Database not ready');
+    return;
+  }
+
   // API endpoints
   if (req.url.startsWith('/api/')) {
     const method = req.method || 'GET';
@@ -225,18 +265,17 @@ const server = http.createServer(async (req, res) => {
         }
         
         // Get existing comment if any
-        const existing = db.prepare('SELECT comment FROM state WHERE bundle_id = ?').get(bundleId);
-        const existingComment = existing ? existing.comment : '';
+        const existingResult = db.exec('SELECT comment FROM state WHERE bundle_id = ?', [bundleId]);
+        const existingComment = (existingResult.length > 0 && existingResult[0].values.length > 0) 
+          ? existingResult[0].values[0][0] || '' 
+          : '';
         
-        db.prepare(`
-          INSERT INTO state (bundle_id, person_name, taken_at, comment)
-          VALUES (?, ?, ?, ?)
-          ON CONFLICT(bundle_id) DO UPDATE SET
-            person_name = excluded.person_name,
-            taken_at = excluded.taken_at,
-            comment = excluded.comment
-        `).run(bundleId, String(personName).trim(), Date.now(), existingComment);
+        // Insert or replace
+        db.run('DELETE FROM state WHERE bundle_id = ?', [bundleId]);
+        db.run('INSERT INTO state (bundle_id, person_name, taken_at, comment) VALUES (?, ?, ?, ?)', 
+          [bundleId, String(personName).trim(), Date.now(), existingComment]);
         
+        saveDatabase();
         broadcastUpdate();
         sendJson(res, 200, { ok: true });
       } catch (e) {
@@ -256,16 +295,19 @@ const server = http.createServer(async (req, res) => {
         }
         
         // Get existing comment before delete
-        const existing = db.prepare('SELECT comment FROM state WHERE bundle_id = ?').get(bundleId);
-        const comment = existing ? existing.comment : '';
+        const existingResult = db.exec('SELECT comment FROM state WHERE bundle_id = ?', [bundleId]);
+        const comment = (existingResult.length > 0 && existingResult[0].values.length > 0)
+          ? existingResult[0].values[0][0] || ''
+          : '';
         
-        // If there's a comment, keep the row with just the comment, otherwise delete
+        // If there's a comment, update row, otherwise delete
         if (comment) {
-          db.prepare('UPDATE state SET person_name = NULL, taken_at = NULL WHERE bundle_id = ?').run(bundleId);
+          db.run('UPDATE state SET person_name = NULL, taken_at = NULL WHERE bundle_id = ?', [bundleId]);
         } else {
-          db.prepare('DELETE FROM state WHERE bundle_id = ?').run(bundleId);
+          db.run('DELETE FROM state WHERE bundle_id = ?', [bundleId]);
         }
         
+        saveDatabase();
         broadcastUpdate();
         sendJson(res, 200, { ok: true });
       } catch (e) {
@@ -285,14 +327,15 @@ const server = http.createServer(async (req, res) => {
         }
         
         const commentText = comment ? String(comment).trim() : '';
-        const existing = db.prepare('SELECT * FROM state WHERE bundle_id = ?').get(bundleId);
+        const existingResult = db.exec('SELECT * FROM state WHERE bundle_id = ?', [bundleId]);
         
-        if (existing) {
-          db.prepare('UPDATE state SET comment = ? WHERE bundle_id = ?').run(commentText, bundleId);
+        if (existingResult.length > 0 && existingResult[0].values.length > 0) {
+          db.run('UPDATE state SET comment = ? WHERE bundle_id = ?', [commentText, bundleId]);
         } else {
-          db.prepare('INSERT INTO state (bundle_id, comment) VALUES (?, ?)').run(bundleId, commentText);
+          db.run('INSERT INTO state (bundle_id, comment) VALUES (?, ?)', [bundleId, commentText]);
         }
         
+        saveDatabase();
         broadcastUpdate();
         sendJson(res, 200, { ok: true });
       } catch (e) {
@@ -311,7 +354,8 @@ const server = http.createServer(async (req, res) => {
           return;
         }
         const id = 'zone_' + Date.now();
-        db.prepare('INSERT INTO zones (id, name, bundles) VALUES (?, ?, ?)').run(id, name, '[]');
+        db.run('INSERT INTO zones (id, name, bundles) VALUES (?, ?, ?)', [id, name, '[]']);
+        saveDatabase();
         broadcastUpdate();
         sendJson(res, 200, { ok: true, id });
       } catch (e) {
@@ -331,17 +375,18 @@ const server = http.createServer(async (req, res) => {
           return;
         }
         
-        const zone = db.prepare('SELECT bundles FROM zones WHERE id = ?').get(zoneId);
-        if (!zone) {
+        const zoneResult = db.exec('SELECT bundles FROM zones WHERE id = ?', [zoneId]);
+        if (zoneResult.length === 0 || zoneResult[0].values.length === 0) {
           sendJson(res, 404, { error: 'Zone not found' });
           return;
         }
         
-        const bundles = JSON.parse(zone.bundles);
+        const bundles = JSON.parse(zoneResult[0].values[0][0]);
         if (!bundles.includes(range)) {
           bundles.push(range);
           bundles.sort((a, b) => String(a).localeCompare(b, 'uk', { numeric: true }));
-          db.prepare('UPDATE zones SET bundles = ? WHERE id = ?').run(JSON.stringify(bundles), zoneId);
+          db.run('UPDATE zones SET bundles = ? WHERE id = ?', [JSON.stringify(bundles), zoneId]);
+          saveDatabase();
           broadcastUpdate();
         }
         sendJson(res, 200, { ok: true });
@@ -380,12 +425,15 @@ const server = http.createServer(async (req, res) => {
 });
 
 // Initialize database and start server
-initDatabase();
-
-server.listen(PORT, () => {
-  console.log('');
-  console.log('  Сайт запущено: http://localhost:' + PORT);
-  console.log('  База данных: SQLite (keytracker.db)');
-  console.log('  Зупинити: Ctrl+C');
-  console.log('');
+initDatabase().then(() => {
+  server.listen(PORT, () => {
+    console.log('');
+    console.log('  Сайт запущено: http://localhost:' + PORT);
+    console.log('  База данных: SQLite (' + dbPath + ')');
+    console.log('  Зупинити: Ctrl+C');
+    console.log('');
+  });
+}).catch(err => {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
 });
