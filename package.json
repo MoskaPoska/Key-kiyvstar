@@ -11,5 +11,8 @@
   },
   "keywords": ["keys", "tracker", "kyivstar"],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "sql.js": "^1.10.0"
+  }
 }
