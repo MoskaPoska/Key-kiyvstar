@@ -5,9 +5,9 @@ const path = require('path');
 const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
 
-// Database file path - use Railway volume if available
-const dbPath = process.env.RAILWAY_VOLUME_MOUNT_PATH 
-  ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'keytracker.db')
+// Database file path - use Railway data directory if available
+const dbPath = process.env.RAILWAY 
+  ? '/data/keytracker.db'
   : path.join(ROOT, 'keytracker.db');
 
 const MIME = {

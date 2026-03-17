@@ -4,17 +4,12 @@
   "description": "Система учёта ключей для Киевстар",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "postinstall": "node -e \"const sqljs=require('sql.js');const fs=require('fs');const db=new sqljs.Database();db.run(\\\"CREATE TABLE IF NOT EXISTS zones (id TEXT PRIMARY KEY, name TEXT NOT NULL, bundles TEXT NOT NULL DEFAULT '[]')\\\");db.run(\\\"CREATE TABLE IF NOT EXISTS state (bundle_id TEXT PRIMARY KEY, person_name TEXT, taken_at INTEGER, comment TEXT DEFAULT '')\\\");const data=db.export();fs.writeFileSync('keytracker.db', Buffer.from(data));console.log('DB initialized')\""
+    "start": "node server.js"
   },
   "engines": {
     "node": ">=18.0.0"
   },
-  "keywords": [
-    "keys",
-    "tracker",
-    "kyivstar"
-  ],
+  "keywords": ["keys", "tracker", "kyivstar"],
   "author": "",
   "license": "ISC",
   "dependencies": {
