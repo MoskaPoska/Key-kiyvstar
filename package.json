@@ -1,0 +1,15 @@
+{
+  "name": "key-tracker",
+  "version": "1.0.0",
+  "description": "Система учёта ключей для Киевстар",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["keys", "tracker", "kyivstar"],
+  "author": "",
+  "license": "ISC"
+}
