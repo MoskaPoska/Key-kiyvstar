@@ -405,13 +405,12 @@ body {
 }
 
 #toggle-history.btn-take {
-  background: #ffffff;
-  color: #000;
-  border: 1px solid #ccc;
+  background: #ffc107;
+  color: #ffffff;
 }
 
 #toggle-history.btn-take:hover {
-  filter: brightness(0.95);
+  filter: brightness(1.1);
 }
 
 .btn-take:hover {
