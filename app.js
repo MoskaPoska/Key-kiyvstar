@@ -4,6 +4,7 @@
   // Дані приходять з сервера: список зон і поточний стан
   let zones = [];
   let state = {}; // { "zone_4_101-1010": { personName: "Іван Петренко", takenAt: 1741234567890 } }
+  let people = []; // [{ id: 1, name: "Іван Петренко" }]
 
   // SSE for real-time updates
   let eventSource = null;
@@ -62,7 +63,20 @@
       zones = [];
       state = {};
     }
+    await loadPeople();
     render();
+  }
+
+  async function loadPeople() {
+    try {
+      const res = await fetch(API_BASE + '/api/people');
+      if (!res.ok) throw new Error('Failed to load people');
+      people = await res.json();
+      renderPeopleSelect();
+    } catch (e) {
+      console.error('Ошибка загрузки людей', e);
+      people = [];
+    }
   }
 
   async function takeKey(bundleId, personName, reload = true, quiet = false) {
@@ -206,6 +220,70 @@
     }
   }
 
+  async function addPerson(name) {
+    const n = (name || '').trim();
+    if (!n) return;
+    try {
+      const res = await fetch(API_BASE + '/api/people/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: n }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Не удалось добавить сотрудника');
+        return;
+      }
+      await loadPeople();
+      renderPeopleManageList();
+    } catch (e) {
+      console.error('Ошибка добавления сотрудника', e);
+      alert('Не удалось добавить сотрудника.');
+    }
+  }
+
+  async function updatePerson(id, name) {
+    const n = (name || '').trim();
+    if (!n) return;
+    try {
+      const res = await fetch(API_BASE + '/api/people/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, name: n }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Не удалось обновить сотрудника');
+        return;
+      }
+      await loadPeople();
+      renderPeopleManageList();
+    } catch (e) {
+      console.error('Ошибка обновления сотрудника', e);
+      alert('Не удалось обновить сотрудника.');
+    }
+  }
+
+  async function deletePerson(id) {
+    try {
+      const res = await fetch(API_BASE + '/api/people/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Не удалось удалить сотрудника');
+        return;
+      }
+      await loadPeople();
+      renderPeopleManageList();
+    } catch (e) {
+      console.error('Ошибка удаления сотрудника', e);
+      alert('Не удалось удалить сотрудника.');
+    }
+  }
+
   function getAllBundles() {
     const list = [];
     getZonesSorted().forEach((z) => {
@@ -240,6 +318,14 @@
   const newBundleZone = document.getElementById('new-bundle-zone');
   const newBundleRange = document.getElementById('new-bundle-range');
   const btnAddBundle = document.getElementById('btn-add-bundle');
+  
+  // People modal elements
+  const peopleModal = document.getElementById('people-modal');
+  const btnManagePeople = document.getElementById('btn-manage-people');
+  const closePeopleModal = document.getElementById('close-people-modal');
+  const newPersonName = document.getElementById('new-person-name');
+  const btnAddPerson = document.getElementById('btn-add-person');
+  const peopleManageList = document.getElementById('people-manage-list');
 
   let selectedPerson = null;
   let searchQuery = '';
@@ -359,6 +445,61 @@
       opt.value = z.id;
       opt.textContent = z.name;
       zoneSelect.appendChild(opt);
+    });
+  }
+
+  function renderPeopleSelect() {
+    if (!personName) return;
+    const currentValue = personName.value;
+    personName.innerHTML = '<option value="">Выберите сотрудника</option>';
+    people.forEach((p) => {
+      const opt = document.createElement('option');
+      opt.value = p.name;
+      opt.textContent = p.name;
+      personName.appendChild(opt);
+    });
+    // Restore selection if still valid
+    if (currentValue && people.some(p => p.name === currentValue)) {
+      personName.value = currentValue;
+    }
+  }
+
+  function renderPeopleManageList() {
+    if (!peopleManageList) return;
+    peopleManageList.innerHTML = '';
+    if (people.length === 0) {
+      peopleManageList.innerHTML = '<p class="empty-message">Список сотрудников пуст</p>';
+      return;
+    }
+    people.forEach((p) => {
+      const item = document.createElement('div');
+      item.className = 'person-manage-item';
+      item.innerHTML = `
+        <span class="person-manage-name">${escapeHtml(p.name)}</span>
+        <div class="person-manage-actions">
+          <button type="button" class="btn-edit" data-id="${p.id}" data-name="${escapeHtml(p.name)}" title="Редактировать">✏️</button>
+          <button type="button" class="btn-delete" data-id="${p.id}" title="Удалить">🗑️</button>
+        </div>
+      `;
+      peopleManageList.appendChild(item);
+    });
+    // Add event listeners
+    peopleManageList.querySelectorAll('.btn-edit').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = parseInt(btn.dataset.id);
+        const newName = prompt('Введите новое ФИО:', btn.dataset.name);
+        if (newName && newName.trim()) {
+          updatePerson(id, newName.trim());
+        }
+      });
+    });
+    peopleManageList.querySelectorAll('.btn-delete').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = parseInt(btn.dataset.id);
+        if (confirm('Удалить сотрудника ' + btn.closest('.person-manage-item').querySelector('.person-manage-name').textContent + '?')) {
+          deletePerson(id);
+        }
+      });
     });
   }
 
@@ -727,9 +868,9 @@
 
   btnTake.addEventListener('click', () => {
     const bundleIds = getSelectedBundleIds();
-    const name = personName.value.trim();
+    const name = personName.value;
     if (!name) {
-      alert('Введи ФИО.');
+      alert('Выбери сотрудника из списка.');
       return;
     }
     if (!bundleIds.length) {
@@ -826,6 +967,34 @@
     newBundleRange.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') btnAddBundle.click();
     });
+  }
+
+  // People modal handlers
+  if (btnManagePeople && peopleModal) {
+    btnManagePeople.addEventListener('click', () => {
+      renderPeopleManageList();
+      peopleModal.style.display = 'flex';
+    });
+    closePeopleModal.addEventListener('click', () => {
+      peopleModal.style.display = 'none';
+    });
+    peopleModal.addEventListener('click', (e) => {
+      if (e.target === peopleModal) {
+        peopleModal.style.display = 'none';
+      }
+    });
+    if (btnAddPerson && newPersonName) {
+      btnAddPerson.addEventListener('click', () => {
+        const name = newPersonName.value.trim();
+        if (name) {
+          addPerson(name);
+          newPersonName.value = '';
+        }
+      });
+      newPersonName.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') btnAddPerson.click();
+      });
+    }
   }
 
   load();

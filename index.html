@@ -49,7 +49,12 @@
             </div>
             <div class="field">
               <label for="person-name">ФИО</label>
-              <input type="text" id="person-name" placeholder="Фамилия Имя" />
+              <div class="person-select-row">
+                <select id="person-name" class="person-select">
+                  <option value="">Выберите сотрудника</option>
+                </select>
+                <button type="button" class="btn btn-manage" id="btn-manage-people" title="Управление сотрудниками">⚙️</button>
+              </div>
             </div>
 
             <div class="action-row action-row--buttons">
@@ -101,6 +106,23 @@
 
     </div>
   </main>
+
+  <!-- Modal for managing people -->
+  <div class="modal-overlay" id="people-modal" style="display: none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Управление сотрудниками</h3>
+        <button type="button" class="modal-close" id="close-people-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="add-person-form">
+          <input type="text" id="new-person-name" placeholder="Новое ФИО" />
+          <button type="button" class="btn btn-add" id="btn-add-person">Добавить</button>
+        </div>
+        <div class="people-manage-list" id="people-manage-list"></div>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

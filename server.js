@@ -54,6 +54,13 @@ async function initDatabase() {
     )
   `);
   
+  db.run(`
+    CREATE TABLE IF NOT EXISTS people (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE
+    )
+  `);
+  
   // Check if zones exist
   const result = db.exec('SELECT COUNT(*) as count FROM zones');
   const zoneCount = result.length > 0 ? result[0].values[0][0] : 0;
@@ -154,6 +161,49 @@ function getZones() {
     name: row[1],
     bundles: JSON.parse(row[2]),
   }));
+}
+
+function getPeople() {
+  const result = db.exec('SELECT id, name FROM people ORDER BY name');
+  if (result.length === 0) return [];
+  return result[0].values.map(row => ({ id: row[0], name: row[1] }));
+}
+
+function addPerson(name) {
+  const trimmedName = String(name).trim();
+  if (!trimmedName) return null;
+  try {
+    db.run('INSERT INTO people (name) VALUES (?)', [trimmedName]);
+    saveDatabase();
+    return { ok: true };
+  } catch (e) {
+    if (e.message.includes('UNIQUE constraint')) {
+      return { error: 'Такое имя уже существует' };
+    }
+    return { error: 'Ошибка при добавлении' };
+  }
+}
+
+function updatePerson(id, name) {
+  const trimmedName = String(name).trim();
+  if (!trimmedName) return { error: 'Имя не может быть пустым' };
+  try {
+    db.run('UPDATE people SET name = ? WHERE id = ?', [trimmedName, id]);
+    saveDatabase();
+    return { ok: true };
+  } catch (e) {
+    return { error: 'Ошибка при обновлении' };
+  }
+}
+
+function deletePerson(id) {
+  try {
+    db.run('DELETE FROM people WHERE id = ?', [id]);
+    saveDatabase();
+    return { ok: true };
+  } catch (e) {
+    return { error: 'Ошибка при удалении' };
+  }
 }
 
 function parseBody(req) {
@@ -374,6 +424,64 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 200, { ok: true });
       } catch {
         sendJson(res, 500, { error: 'Failed to add bundle' });
+      }
+      return;
+    }
+
+    // Get list of people
+    if (req.url === '/api/people' && method === 'GET') {
+      const people = getPeople();
+      sendJson(res, 200, people);
+      return;
+    }
+
+    // Add new person
+    if (req.url === '/api/people/add' && method === 'POST') {
+      try {
+        const body = await parseBody(req);
+        const result = addPerson(body.name);
+        if (result.error) {
+          sendJson(res, 400, { error: result.error });
+        } else {
+          broadcastUpdate();
+          sendJson(res, 200, result);
+        }
+      } catch {
+        sendJson(res, 500, { error: 'Ошибка при добавлении' });
+      }
+      return;
+    }
+
+    // Update person
+    if (req.url === '/api/people/update' && method === 'POST') {
+      try {
+        const body = await parseBody(req);
+        const result = updatePerson(body.id, body.name);
+        if (result.error) {
+          sendJson(res, 400, { error: result.error });
+        } else {
+          broadcastUpdate();
+          sendJson(res, 200, result);
+        }
+      } catch {
+        sendJson(res, 500, { error: 'Ошибка при обновлении' });
+      }
+      return;
+    }
+
+    // Delete person
+    if (req.url === '/api/people/delete' && method === 'POST') {
+      try {
+        const body = await parseBody(req);
+        const result = deletePerson(body.id);
+        if (result.error) {
+          sendJson(res, 400, { error: result.error });
+        } else {
+          broadcastUpdate();
+          sendJson(res, 200, result);
+        }
+      } catch {
+        sendJson(res, 500, { error: 'Ошибка при удалении' });
       }
       return;
     }
