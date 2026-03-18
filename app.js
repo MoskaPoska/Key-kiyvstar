@@ -451,7 +451,7 @@
   function renderPeopleSelect() {
     if (!personName) return;
     const currentValue = personName.value;
-    personName.innerHTML = '<option value="">Выберите сотрудника</option>';
+    personName.innerHTML = '<option value="">Выбери сотрудника</option>';
     people.forEach((p) => {
       const opt = document.createElement('option');
       opt.value = p.name;
@@ -487,7 +487,7 @@
     peopleManageList.querySelectorAll('.btn-edit').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = parseInt(btn.dataset.id);
-        const newName = prompt('Введите новое ФИО:', btn.dataset.name);
+        const newName = prompt('Введи новое ФИО:', btn.dataset.name);
         if (newName && newName.trim()) {
           updatePerson(id, newName.trim());
         }
