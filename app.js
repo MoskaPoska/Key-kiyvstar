@@ -480,12 +480,24 @@
       const date = new Date(h.timestamp);
       const dateStr = date.toLocaleDateString('uk-UA');
       const timeStr = date.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
-      const actionText = h.action === 'take' ? 'взяв' : 'вернув';
+
+      // Format bundle ID: zone_1_101-105 -> Зона 1 / 101-105
+      let bundleDisplay = h.bundleId || '';
+      if (bundleDisplay.startsWith('zone_')) {
+        const parts = bundleDisplay.replace('zone_', '').split('_');
+        if (parts.length >= 2) {
+          const zoneNum = parts[0];
+          const tkdRange = parts.slice(1).join('_');
+          bundleDisplay = `Зона ${zoneNum} / ${tkdRange}`;
+        }
+      }
+
+      const actionText = h.action === 'take' ? 'Взял' : 'Вернул';
       const actionClass = h.action === 'take' ? 'action-take' : 'action-return';
       item.innerHTML = `
         <span class="history-person">${escapeHtml(h.personName || 'Неизвестно')}</span>
         <span class="history-action ${actionClass}">${actionText}</span>
-        <span class="history-bundle">${escapeHtml(h.bundleId)}</span>
+        <span class="history-bundle">${escapeHtml(bundleDisplay)}</span>
         <span class="history-time">${dateStr} ${timeStr}</span>
       `;
       historyList.appendChild(item);
