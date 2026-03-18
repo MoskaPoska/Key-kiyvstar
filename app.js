@@ -373,6 +373,10 @@
     if (searchQuery) {
       const q = searchQuery.trim();
       const qLower = q.toLowerCase();
+
+      // Check if search is a number (zone number)
+      const isZoneNumber = /^\d+$/.test(q);
+
       list = list.filter((b) => {
         // Обычный поиск
         if (
@@ -391,6 +395,22 @@
         }
         return false;
       });
+
+      // If searching by zone number, sort to show that zone first
+      if (isZoneNumber) {
+        list.sort((a, b) => {
+          const aZoneNum = parseInt(a.zoneName.replace('Зона ', '')) || 0;
+          const bZoneNum = parseInt(b.zoneName.replace('Зона ', '')) || 0;
+          const searchNum = parseInt(q);
+
+          // Exact zone match first
+          if (aZoneNum === searchNum && bZoneNum !== searchNum) return -1;
+          if (bZoneNum === searchNum && aZoneNum !== searchNum) return 1;
+
+          // Then sort by zone number
+          return aZoneNum - bZoneNum || a.tkdRange.localeCompare(b.tkdRange);
+        });
+      }
     }
     if (selectedPerson) {
       list = list.filter((b) => state[b.bundleId] && state[b.bundleId].personName === selectedPerson);
