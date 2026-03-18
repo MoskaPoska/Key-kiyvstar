@@ -327,7 +327,6 @@
   const btnManagePeople = document.getElementById('btn-manage-people');
   const closePeopleModal = document.getElementById('close-people-modal');
   const newPersonName = document.getElementById('new-person-name');
-  const newPersonPhone = document.getElementById('new-person-phone');
   const btnAddPerson = document.getElementById('btn-add-person');
   const peopleManageList = document.getElementById('people-manage-list');
 
@@ -489,14 +488,10 @@
     people.forEach((p) => {
       const item = document.createElement('div');
       item.className = 'person-manage-item';
-      const phoneDisplay = p.phone ? `<span class="person-manage-phone">${escapeHtml(p.phone)}</span>` : '';
       item.innerHTML = `
-        <div class="person-manage-info">
-          <span class="person-manage-name">${escapeHtml(p.name)}</span>
-          ${phoneDisplay}
-        </div>
+        <span class="person-manage-name">${escapeHtml(p.name)}</span>
         <div class="person-manage-actions">
-          <button type="button" class="btn-edit" data-id="${p.id}" data-name="${escapeHtml(p.name)}" data-phone="${escapeHtml(p.phone || '')}" title="Редактировать">✏️</button>
+          <button type="button" class="btn-edit" data-id="${p.id}" data-name="${escapeHtml(p.name)}" title="Редактировать">✏️</button>
           <button type="button" class="btn-delete" data-id="${p.id}" title="Удалить">🗑️</button>
         </div>
       `;
@@ -506,12 +501,9 @@
     peopleManageList.querySelectorAll('.btn-edit').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = parseInt(btn.dataset.id);
-        const currentName = btn.dataset.name;
-        const currentPhone = btn.dataset.phone || '';
-        const newName = prompt('Введи новое ФИО:', currentName);
-        const newPhone = prompt('Введи телефон:', currentPhone);
+        const newName = prompt('Введи новое ФИО:', btn.dataset.name);
         if (newName && newName.trim()) {
-          updatePerson(id, newName.trim(), newPhone ? newPhone.trim() : '');
+          updatePerson(id, newName.trim());
         }
       });
     });
@@ -1015,20 +1007,15 @@
         peopleModal.style.display = 'none';
       }
     });
-    if (btnAddPerson && newPersonName && newPersonPhone) {
+    if (btnAddPerson && newPersonName) {
       btnAddPerson.addEventListener('click', () => {
         const name = newPersonName.value.trim();
-        const phone = newPersonPhone.value.trim();
         if (name) {
-          addPerson(name, phone);
+          addPerson(name);
           newPersonName.value = '';
-          newPersonPhone.value = '';
         }
       });
       newPersonName.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') btnAddPerson.click();
-      });
-      newPersonPhone.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') btnAddPerson.click();
       });
     }
