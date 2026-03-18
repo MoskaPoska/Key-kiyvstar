@@ -61,6 +61,16 @@ async function initDatabase() {
       phone TEXT DEFAULT ''
     )
   `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      bundle_id TEXT NOT NULL,
+      person_name TEXT,
+      action TEXT NOT NULL,
+      timestamp INTEGER NOT NULL
+    )
+  `);
   
   // Check if zones exist
   const result = db.exec('SELECT COUNT(*) as count FROM zones');
@@ -306,7 +316,7 @@ const server = http.createServer(async (req, res) => {
           sendJson(res, 400, { error: 'bundleId and personName are required' });
           return;
         }
-        
+
         const existingResult = db.exec('SELECT comment FROM state WHERE bundle_id = ?', [bundleId]);
         const existingComment = (existingResult.length > 0 && existingResult[0].values.length > 0) 
           ? existingResult[0].values[0][0] || '' 
@@ -315,6 +325,10 @@ const server = http.createServer(async (req, res) => {
         db.run('DELETE FROM state WHERE bundle_id = ?', [bundleId]);
         db.run('INSERT INTO state (bundle_id, person_name, taken_at, comment) VALUES (?, ?, ?, ?)', 
           [bundleId, String(personName).trim(), Date.now(), existingComment]);
+
+        // Log history - take action
+        db.run('INSERT INTO history (bundle_id, person_name, action, timestamp) VALUES (?, ?, ?, ?)',
+          [bundleId, String(personName).trim(), 'take', Date.now()]);
         
         saveDatabase();
         broadcastUpdate();
@@ -333,7 +347,13 @@ const server = http.createServer(async (req, res) => {
           sendJson(res, 400, { error: 'bundleId is required' });
           return;
         }
-        
+
+        // Get current holder before returning
+        const holderResult = db.exec('SELECT person_name FROM state WHERE bundle_id = ?', [bundleId]);
+        const currentHolder = (holderResult.length > 0 && holderResult[0].values.length > 0)
+          ? holderResult[0].values[0][0]
+          : null;
+
         const existingResult = db.exec('SELECT comment FROM state WHERE bundle_id = ?', [bundleId]);
         const comment = (existingResult.length > 0 && existingResult[0].values.length > 0)
           ? existingResult[0].values[0][0] || ''
@@ -343,6 +363,12 @@ const server = http.createServer(async (req, res) => {
           db.run('UPDATE state SET person_name = NULL, taken_at = NULL WHERE bundle_id = ?', [bundleId]);
         } else {
           db.run('DELETE FROM state WHERE bundle_id = ?', [bundleId]);
+        }
+
+        // Log history - return action
+        if (currentHolder) {
+          db.run('INSERT INTO history (bundle_id, person_name, action, timestamp) VALUES (?, ?, ?, ?)',
+            [bundleId, currentHolder, 'return', Date.now()]);
         }
         
         saveDatabase();
@@ -485,6 +511,29 @@ const server = http.createServer(async (req, res) => {
         }
       } catch {
         sendJson(res, 500, { error: 'Ошибка при удалении' });
+      }
+      return;
+    }
+
+    // Get history
+    if (req.url === '/api/history' && method === 'GET') {
+      try {
+        const result = db.exec('SELECT id, bundle_id, person_name, action, timestamp FROM history ORDER BY timestamp DESC LIMIT 500');
+        const history = [];
+        if (result.length > 0 && result[0].values) {
+          result[0].values.forEach(row => {
+            history.push({
+              id: row[0],
+              bundleId: row[1],
+              personName: row[2],
+              action: row[3],
+              timestamp: row[4]
+            });
+          });
+        }
+        sendJson(res, 200, history);
+      } catch (e) {
+        sendJson(res, 500, { error: 'Failed to get history' });
       }
       return;
     }

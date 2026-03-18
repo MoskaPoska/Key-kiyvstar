@@ -1157,3 +1157,63 @@ body {
   padding: 2rem 1rem;
   font-family: 'Inter', 'Roboto', system-ui, sans-serif;
 }
+
+/* History Section */
+.history-section {
+  margin-top: 1.5rem;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.history-person {
+  font-weight: 500;
+  color: #111827;
+  min-width: 120px;
+}
+
+.history-action {
+  font-weight: 500;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.history-action.action-take {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.history-action.action-return {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.history-bundle {
+  font-family: ui-monospace, monospace;
+  color: #6b7280;
+  flex: 1;
+}
+
+.history-time {
+  color: #9ca3af;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}

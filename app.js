@@ -5,6 +5,7 @@
   let zones = [];
   let state = {}; // { "zone_4_101-1010": { personName: "Іван Петренко", takenAt: 1741234567890 } }
   let people = []; // [{ id: 1, name: "Іван Петренко" }]
+  let history = []; // [{ id, bundleId, personName, action, timestamp }]
 
   // SSE for real-time updates
   let eventSource = null;
@@ -64,7 +65,20 @@
       state = {};
     }
     await loadPeople();
+    await loadHistory();
     render();
+  }
+
+  async function loadHistory() {
+    try {
+      const res = await fetch(API_BASE + '/api/history');
+      if (!res.ok) throw new Error('Failed to load history');
+      history = await res.json();
+      renderHistory();
+    } catch (e) {
+      console.error('Ошибка загрузки истории', e);
+      history = [];
+    }
   }
 
   async function loadPeople() {
@@ -330,6 +344,7 @@
   const newPersonName = document.getElementById('new-person-name');
   const btnAddPerson = document.getElementById('btn-add-person');
   const peopleManageList = document.getElementById('people-manage-list');
+  const historyList = document.getElementById('history-list');
 
   let selectedPerson = null;
   let searchQuery = '';
@@ -449,6 +464,31 @@
       opt.value = z.id;
       opt.textContent = z.name;
       zoneSelect.appendChild(opt);
+    });
+  }
+
+  function renderHistory() {
+    if (!historyList) return;
+    if (history.length === 0) {
+      historyList.innerHTML = '<p class="empty-message">История пуста</p>';
+      return;
+    }
+    historyList.innerHTML = '';
+    history.forEach(h => {
+      const item = document.createElement('div');
+      item.className = 'history-item';
+      const date = new Date(h.timestamp);
+      const dateStr = date.toLocaleDateString('uk-UA');
+      const timeStr = date.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+      const actionText = h.action === 'take' ? 'взяв' : 'вернув';
+      const actionClass = h.action === 'take' ? 'action-take' : 'action-return';
+      item.innerHTML = `
+        <span class="history-person">${escapeHtml(h.personName || 'Неизвестно')}</span>
+        <span class="history-action ${actionClass}">${actionText}</span>
+        <span class="history-bundle">${escapeHtml(h.bundleId)}</span>
+        <span class="history-time">${dateStr} ${timeStr}</span>
+      `;
+      historyList.appendChild(item);
     });
   }
 
