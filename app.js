@@ -260,6 +260,7 @@
       }
       await loadPeople();
       renderPeopleManageList();
+      renderViewPanel();
     } catch (e) {
       console.error('Ошибка обновления сотрудника', e);
       alert('Не удалось обновить сотрудника.');
