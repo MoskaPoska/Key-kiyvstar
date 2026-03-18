@@ -347,6 +347,7 @@
   const historyList = document.getElementById('history-list');
   const historySection = document.getElementById('history-section');
   const toggleHistoryBtn = document.getElementById('toggle-history-btn');
+  const toggleHistoryHideBtn = document.getElementById('toggle-history');
 
   let selectedPerson = null;
   let searchQuery = '';
@@ -1104,6 +1105,16 @@
       } else {
         historySection.style.display = 'none';
         toggleHistoryBtn.textContent = 'История';
+        toggleHistoryBtn.classList.remove('active');
+      }
+    });
+  }
+
+  // History hide button handler
+  if (toggleHistoryHideBtn && historySection) {
+    toggleHistoryHideBtn.addEventListener('click', () => {
+      historySection.style.display = 'none';
+      if (toggleHistoryBtn) {
         toggleHistoryBtn.classList.remove('active');
       }
     });
