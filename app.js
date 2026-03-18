@@ -481,14 +481,14 @@
       const dateStr = date.toLocaleDateString('uk-UA');
       const timeStr = date.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
 
-      // Format bundle ID: zone_1_101-105 -> Зона 1 / 101-105
+      // Format bundle ID: zone_1_101-105 -> 1_101-105
       let bundleDisplay = h.bundleId || '';
       if (bundleDisplay.startsWith('zone_')) {
         const parts = bundleDisplay.replace('zone_', '').split('_');
         if (parts.length >= 2) {
           const zoneNum = parts[0];
           const tkdRange = parts.slice(1).join('_');
-          bundleDisplay = `Зона ${zoneNum} _ ${tkdRange}`;
+          bundleDisplay = `${zoneNum}_${tkdRange}`;
         }
       }
 
