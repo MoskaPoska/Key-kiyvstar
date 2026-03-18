@@ -638,13 +638,31 @@
 
     // Get person's phone and set link
     const person = people.find(p => p.name === selectedPerson);
-    if (person && person.phone) {
-      viewPersonPhone.textContent = person.phone;
-      viewPersonPhone.href = `tel:${person.phone}`;
-      viewPersonPhone.style.display = '';
+    if (person) {
+      if (person.phone) {
+        viewPersonPhone.textContent = person.phone;
+        viewPersonPhone.href = `tel:${person.phone}`;
+        viewPersonPhone.style.display = '';
+        viewPersonPhone.title = 'Нажмите для звонка';
+      } else {
+        viewPersonPhone.textContent = '+ Добавить телефон';
+        viewPersonPhone.href = '#';
+        viewPersonPhone.style.display = '';
+        viewPersonPhone.title = 'Нажмите для добавления телефона';
+      }
     } else {
       viewPersonPhone.style.display = 'none';
     }
+
+    // Add click handler for phone to edit/add
+    viewPersonPhone.onclick = (e) => {
+      e.preventDefault();
+      if (!person) return;
+      const newPhone = prompt('Введите номер телефона:', person.phone || '');
+      if (newPhone !== null) {
+        updatePerson(person.id, person.name, newPhone.trim());
+      }
+    };
 
     // Get person's bundles
     const personBundles = Object.entries(state)

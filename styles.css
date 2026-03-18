@@ -581,11 +581,21 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 0.25rem;
   transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 .person-phone-link:hover {
   background-color: rgba(255, 255, 255, 0.2);
   border-color: white;
+}
+
+.person-phone-link[href="#"] {
+  border-style: dashed;
+  opacity: 0.8;
+}
+
+.person-phone-link[href="#"]:hover {
+  opacity: 1;
 }
 
 .view-panel .card-body {
