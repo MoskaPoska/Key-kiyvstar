@@ -488,7 +488,7 @@
         if (parts.length >= 2) {
           const zoneNum = parts[0];
           const tkdRange = parts.slice(1).join('_');
-          bundleDisplay = `Зона ${zoneNum} / ${tkdRange}`;
+          bundleDisplay = `Зона ${zoneNum} _ ${tkdRange}`;
         }
       }
 
