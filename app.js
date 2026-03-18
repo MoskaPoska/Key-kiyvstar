@@ -451,7 +451,15 @@
   function renderPeopleSelect() {
     if (!personName) return;
     const currentValue = personName.value;
+    // Add disabled placeholder option
+    const placeholderOpt = document.createElement('option');
+    placeholderOpt.value = '';
+    placeholderOpt.disabled = true;
+    placeholderOpt.selected = true;
+    placeholderOpt.textContent = 'Выбери сотрудника';
     personName.innerHTML = '';
+    personName.appendChild(placeholderOpt);
+    
     people.forEach((p) => {
       const opt = document.createElement('option');
       opt.value = p.name;
@@ -460,6 +468,7 @@
     });
     // Restore selection if still valid
     if (currentValue && people.some(p => p.name === currentValue)) {
+      placeholderOpt.selected = false;
       personName.value = currentValue;
     }
   }
