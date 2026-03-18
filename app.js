@@ -451,7 +451,7 @@
   function renderPeopleSelect() {
     if (!personName) return;
     const currentValue = personName.value;
-    personName.innerHTML = '<option value="">Выбери сотрудника</option>';
+    personName.innerHTML = '';
     people.forEach((p) => {
       const opt = document.createElement('option');
       opt.value = p.name;
