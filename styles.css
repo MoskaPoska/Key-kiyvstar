@@ -404,6 +404,15 @@ body {
   filter: brightness(1.1);
 }
 
+#toggle-history.btn-take {
+  background: #ffc107;
+  color: #000;
+}
+
+#toggle-history.btn-take:hover {
+  filter: brightness(1.1);
+}
+
 .btn-take:hover {
   filter: brightness(1.1);
 }
@@ -1180,20 +1189,6 @@ body {
 
 .section-header .section-title {
   margin-bottom: 0;
-}
-
-.btn-toggle {
-  background: #ffc107;
-  color: #000;
-  border: none;
-  padding: 0.375rem 0.75rem;
-  font-size: 0.875rem;
-  border-radius: 0.2rem;
-  cursor: pointer;
-}
-
-.btn-toggle:hover {
-  filter: brightness(1.1);
 }
 
 .toggle-history-btn.active {
