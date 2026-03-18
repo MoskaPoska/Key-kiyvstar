@@ -4,7 +4,10 @@ const path = require('path');
 
 const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
-const DB_FILE = path.join(ROOT, 'keytracker.db');
+// Use Railway persistent volume if available, otherwise use local directory
+const DB_FILE = process.env.RAILWAY_VOLUME_MOUNT_PATH
+  ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'keytracker.db')
+  : path.join(ROOT, 'keytracker.db');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
