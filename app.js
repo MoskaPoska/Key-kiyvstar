@@ -345,6 +345,8 @@
   const btnAddPerson = document.getElementById('btn-add-person');
   const peopleManageList = document.getElementById('people-manage-list');
   const historyList = document.getElementById('history-list');
+  const historySection = document.getElementById('history-section');
+  const toggleHistoryBtn = document.getElementById('toggle-history-btn');
 
   let selectedPerson = null;
   let searchQuery = '';
@@ -1090,6 +1092,21 @@
         if (e.key === 'Enter') btnAddPerson.click();
       });
     }
+  }
+
+  // History toggle handler
+  if (toggleHistoryBtn && historySection) {
+    toggleHistoryBtn.addEventListener('click', () => {
+      if (historySection.style.display === 'none') {
+        historySection.style.display = 'block';
+        toggleHistoryBtn.textContent = 'История';
+        toggleHistoryBtn.classList.add('active');
+      } else {
+        historySection.style.display = 'none';
+        toggleHistoryBtn.textContent = 'История';
+        toggleHistoryBtn.classList.remove('active');
+      }
+    });
   }
 
   load();

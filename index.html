@@ -105,13 +105,19 @@
       </section>
 
       <!-- Блок с историей -->
-      <section class="history-section card" id="history-section">
-        <h2 class="section-title">История</h2>
+      <section class="history-section card" id="history-section" style="display: none;">
+        <div class="section-header">
+          <h2 class="section-title">История</h2>
+          <button type="button" class="btn-toggle" id="toggle-history">Скрыть</button>
+        </div>
         <div class="history-list" id="history-list"></div>
       </section>
 
     </div>
   </main>
+
+  <!-- Кнопка переключения истории -->
+  <button type="button" class="btn btn-secondary toggle-history-btn" id="toggle-history-btn">История</button>
 
   <!-- Modal for managing people -->
   <div class="modal-overlay" id="people-modal" style="display: none;">
