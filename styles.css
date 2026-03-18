@@ -905,11 +905,54 @@ body {
 
 .person-select-row .person-select {
   flex: 1;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: #ffffff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding: 0.625rem 2.5rem 0.625rem 0.875rem;
+  font-size: 0.9375rem;
+  font-family: 'Inter', 'Roboto', system-ui, sans-serif;
+  color: #111827;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  width: 100%;
+}
+
+.person-select-row .person-select:hover {
+  border-color: #9ca3af;
+}
+
+.person-select-row .person-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.person-select-row .person-select option {
+  padding: 0.75rem;
+  font-family: 'Inter', 'Roboto', system-ui, sans-serif;
+  color: #111827;
+  background: #ffffff;
 }
 
 .btn-manage {
-  padding: 0.5rem 0.75rem;
+  padding: 0.625rem 0.75rem;
   font-size: 1rem;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.btn-manage:hover {
+  background: #e5e7eb;
+  border-color: #d1d5db;
 }
 
 /* Modal styles */
