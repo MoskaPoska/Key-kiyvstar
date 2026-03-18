@@ -57,7 +57,8 @@ async function initDatabase() {
   db.run(`
     CREATE TABLE IF NOT EXISTS people (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL UNIQUE
+      name TEXT NOT NULL UNIQUE,
+      phone TEXT DEFAULT ''
     )
   `);
   
@@ -164,16 +165,17 @@ function getZones() {
 }
 
 function getPeople() {
-  const result = db.exec('SELECT id, name FROM people ORDER BY name');
+  const result = db.exec('SELECT id, name, phone FROM people ORDER BY name');
   if (result.length === 0) return [];
-  return result[0].values.map(row => ({ id: row[0], name: row[1] }));
+  return result[0].values.map(row => ({ id: row[0], name: row[1], phone: row[2] || '' }));
 }
 
-function addPerson(name) {
+function addPerson(name, phone) {
   const trimmedName = String(name).trim();
+  const trimmedPhone = phone ? String(phone).trim() : '';
   if (!trimmedName) return null;
   try {
-    db.run('INSERT INTO people (name) VALUES (?)', [trimmedName]);
+    db.run('INSERT INTO people (name, phone) VALUES (?, ?)', [trimmedName, trimmedPhone]);
     saveDatabase();
     return { ok: true };
   } catch (e) {
@@ -184,11 +186,12 @@ function addPerson(name) {
   }
 }
 
-function updatePerson(id, name) {
+function updatePerson(id, name, phone) {
   const trimmedName = String(name).trim();
+  const trimmedPhone = phone ? String(phone).trim() : '';
   if (!trimmedName) return { error: 'Имя не может быть пустым' };
   try {
-    db.run('UPDATE people SET name = ? WHERE id = ?', [trimmedName, id]);
+    db.run('UPDATE people SET name = ?, phone = ? WHERE id = ?', [trimmedName, trimmedPhone, id]);
     saveDatabase();
     return { ok: true };
   } catch (e) {
@@ -439,7 +442,7 @@ const server = http.createServer(async (req, res) => {
     if (req.url === '/api/people/add' && method === 'POST') {
       try {
         const body = await parseBody(req);
-        const result = addPerson(body.name);
+        const result = addPerson(body.name, body.phone);
         if (result.error) {
           sendJson(res, 400, { error: result.error });
         } else {
@@ -456,7 +459,7 @@ const server = http.createServer(async (req, res) => {
     if (req.url === '/api/people/update' && method === 'POST') {
       try {
         const body = await parseBody(req);
-        const result = updatePerson(body.id, body.name);
+        const result = updatePerson(body.id, body.name, body.phone);
         if (result.error) {
           sendJson(res, 400, { error: result.error });
         } else {

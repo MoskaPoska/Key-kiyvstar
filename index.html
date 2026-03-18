@@ -93,6 +93,7 @@
         <div class="view-panel card" id="view-panel" style="display: none;">
           <div class="card-header">
             <h3 id="view-person-name"></h3>
+            <a id="view-person-phone" class="person-phone-link" href="#"></a>
           </div>
           <div class="card-body">
             <div id="view-keys-info" class="view-keys-info"></div>
@@ -116,7 +117,8 @@
       </div>
       <div class="modal-body">
         <div class="add-person-form">
-          <input type="text" id="new-person-name" placeholder="Новое ФИО" />
+          <input type="text" id="new-person-name" placeholder="ФИО" />
+          <input type="tel" id="new-person-phone" placeholder="Телефон" />
           <button type="button" class="btn btn-add" id="btn-add-person">Добавить</button>
         </div>
         <div class="people-manage-list" id="people-manage-list"></div>

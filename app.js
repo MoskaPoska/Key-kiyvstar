@@ -220,14 +220,15 @@
     }
   }
 
-  async function addPerson(name) {
+  async function addPerson(name, phone) {
     const n = (name || '').trim();
+    const p = (phone || '').trim();
     if (!n) return;
     try {
       const res = await fetch(API_BASE + '/api/people/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: n }),
+        body: JSON.stringify({ name: n, phone: p }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -242,14 +243,15 @@
     }
   }
 
-  async function updatePerson(id, name) {
+  async function updatePerson(id, name, phone) {
     const n = (name || '').trim();
+    const p = (phone || '').trim();
     if (!n) return;
     try {
       const res = await fetch(API_BASE + '/api/people/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, name: n }),
+        body: JSON.stringify({ id, name: n, phone: p }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -310,6 +312,7 @@
   const peopleSection = document.getElementById('people-section');
   const viewPanel = document.getElementById('view-panel');
   const viewPersonName = document.getElementById('view-person-name');
+  const viewPersonPhone = document.getElementById('view-person-phone');
   const viewKeysInfo = document.getElementById('view-keys-info');
   const viewBundles = document.getElementById('view-bundles');
   const viewButtons = document.getElementById('view-buttons');
@@ -324,6 +327,7 @@
   const btnManagePeople = document.getElementById('btn-manage-people');
   const closePeopleModal = document.getElementById('close-people-modal');
   const newPersonName = document.getElementById('new-person-name');
+  const newPersonPhone = document.getElementById('new-person-phone');
   const btnAddPerson = document.getElementById('btn-add-person');
   const peopleManageList = document.getElementById('people-manage-list');
 
@@ -464,6 +468,8 @@
       const opt = document.createElement('option');
       opt.value = p.name;
       opt.textContent = p.name;
+      // Store phone in dataset for easy access
+      opt.dataset.phone = p.phone || '';
       personName.appendChild(opt);
     });
     // Restore selection if still valid
@@ -483,10 +489,14 @@
     people.forEach((p) => {
       const item = document.createElement('div');
       item.className = 'person-manage-item';
+      const phoneDisplay = p.phone ? `<span class="person-manage-phone">${escapeHtml(p.phone)}</span>` : '';
       item.innerHTML = `
-        <span class="person-manage-name">${escapeHtml(p.name)}</span>
+        <div class="person-manage-info">
+          <span class="person-manage-name">${escapeHtml(p.name)}</span>
+          ${phoneDisplay}
+        </div>
         <div class="person-manage-actions">
-          <button type="button" class="btn-edit" data-id="${p.id}" data-name="${escapeHtml(p.name)}" title="Редактировать">✏️</button>
+          <button type="button" class="btn-edit" data-id="${p.id}" data-name="${escapeHtml(p.name)}" data-phone="${escapeHtml(p.phone || '')}" title="Редактировать">✏️</button>
           <button type="button" class="btn-delete" data-id="${p.id}" title="Удалить">🗑️</button>
         </div>
       `;
@@ -496,9 +506,12 @@
     peopleManageList.querySelectorAll('.btn-edit').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = parseInt(btn.dataset.id);
-        const newName = prompt('Введи новое ФИО:', btn.dataset.name);
+        const currentName = btn.dataset.name;
+        const currentPhone = btn.dataset.phone || '';
+        const newName = prompt('Введи новое ФИО:', currentName);
+        const newPhone = prompt('Введи телефон:', currentPhone);
         if (newName && newName.trim()) {
-          updatePerson(id, newName.trim());
+          updatePerson(id, newName.trim(), newPhone ? newPhone.trim() : '');
         }
       });
     });
@@ -630,6 +643,16 @@
 
     viewPanel.style.display = '';
     viewPersonName.textContent = `Ключи у: ${selectedPerson}`;
+
+    // Get person's phone and set link
+    const person = people.find(p => p.name === selectedPerson);
+    if (person && person.phone) {
+      viewPersonPhone.textContent = person.phone;
+      viewPersonPhone.href = `tel:${person.phone}`;
+      viewPersonPhone.style.display = '';
+    } else {
+      viewPersonPhone.style.display = 'none';
+    }
 
     // Get person's bundles
     const personBundles = Object.entries(state)
@@ -992,15 +1015,20 @@
         peopleModal.style.display = 'none';
       }
     });
-    if (btnAddPerson && newPersonName) {
+    if (btnAddPerson && newPersonName && newPersonPhone) {
       btnAddPerson.addEventListener('click', () => {
         const name = newPersonName.value.trim();
+        const phone = newPersonPhone.value.trim();
         if (name) {
-          addPerson(name);
+          addPerson(name, phone);
           newPersonName.value = '';
+          newPersonPhone.value = '';
         }
       });
       newPersonName.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') btnAddPerson.click();
+      });
+      newPersonPhone.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') btnAddPerson.click();
       });
     }
