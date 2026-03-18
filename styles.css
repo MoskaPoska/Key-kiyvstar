@@ -396,6 +396,14 @@ body {
   color: #fff;
 }
 
+#toggle-history-btn.btn-take {
+  background: #0d6efd;
+}
+
+#toggle-history-btn.btn-take:hover {
+  filter: brightness(1.1);
+}
+
 .btn-take:hover {
   filter: brightness(1.1);
 }
