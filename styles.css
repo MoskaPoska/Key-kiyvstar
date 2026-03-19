@@ -100,24 +100,22 @@ body {
 
 .search-input {
   flex: 1;
-  padding: 0.5rem 0.875rem;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  font-size: 0.9rem;
-  border: 1px solid rgba(55, 65, 81, 0.5);
-  border-radius: 8px;
-  background: rgba(15, 23, 42, 0.4);
-  color: #e5e7eb;
-  transition: all 0.2s ease;
+  padding: 0.65rem 1rem;
+  font-family: var(--font);
+  font-size: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
 }
 
 .search-input::placeholder {
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .search-input:focus {
   outline: none;
-  border-color: #3b82f6;
-  background: rgba(15, 23, 42, 0.6);
+  border-color: var(--accent);
 }
 
 .search-results {
@@ -228,47 +226,23 @@ body {
 
 .bundle-list {
   border: 1px solid rgba(52, 65, 85, 0.7);
-  border-radius: 12px;
+  border-radius: calc(var(--radius) / 1.5);
   background: rgba(15, 23, 42, 0.6);
-  max-height: 300px;
+  max-height: 190px;
   overflow-y: auto;
-  padding: 0.5rem;
+  padding: 0.25rem;
   font-size: 0.9rem;
-}
-
-/* Modern scrollbar */
-.bundle-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.bundle-list::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.4);
-  border-radius: 3px;
-}
-
-.bundle-list::-webkit-scrollbar-thumb {
-  background: rgba(59, 130, 246, 0.4);
-  border-radius: 3px;
-}
-
-.bundle-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(59, 130, 246, 0.6);
 }
 
 .bundle-item {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.6rem 0.75rem;
-  border-radius: 8px;
+  gap: 0.4rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: calc(var(--radius) / 1.8);
   cursor: pointer;
   transition: background 0.15s, border 0.15s;
   border: 1px solid transparent;
-  margin-bottom: 0.25rem;
-}
-
-.bundle-item:last-child {
-  margin-bottom: 0;
 }
 
 .bundle-item:hover {
@@ -458,17 +432,12 @@ body {
 }
 
 .btn-add {
-  background: #3b82f6;
+  background: var(--accent);
   color: #fff;
-  border: none;
-  padding: 0.5rem 1rem;
-  font-size: 0.9rem;
-  border-radius: 8px;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 .btn-add:hover {
-  background: #2563eb;
+  background: var(--accent-hover);
 }
 
 .btn-secondary {
