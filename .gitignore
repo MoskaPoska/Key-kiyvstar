@@ -1,5 +1,4 @@
 node_modules/
-data.json
 keytracker.db
 *.log
 .DS_Store
