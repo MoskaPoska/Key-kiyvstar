@@ -75,16 +75,7 @@ async function initDatabase() {
     )
   `);
   
-  // Всегда загружаем зоны из data.json
-  db.run('DELETE FROM zones');
-  const defaultZones = getDefaultZones();
-  const stmt = db.prepare('INSERT INTO zones (id, name, bundles) VALUES (?, ?, ?)');
-  defaultZones.forEach(z => {
-    stmt.run([z.id, z.name, JSON.stringify(z.bundles)]);
-  });
-  stmt.free();
-  saveDatabase();
-  
+  // Зоны загружаются из data.json напрямую, без постоянного хранения в БД
   console.log('Database ready');
 }
 
@@ -178,13 +169,19 @@ function getState() {
 }
 
 function getZones() {
-  const result = db.exec('SELECT id, name, bundles FROM zones');
-  if (result.length === 0) return [];
-  return result[0].values.map(row => ({
-    id: row[0],
-    name: row[1],
-    bundles: JSON.parse(row[2]),
-  }));
+  // Всегда загружаем зоны из data.json напрямую
+  const dataFile = path.join(ROOT, 'data.json');
+  if (fs.existsSync(dataFile)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
+      if (data.zones && Array.isArray(data.zones)) {
+        return data.zones;
+      }
+    } catch (e) {
+      console.error('Error reading data.json:', e);
+    }
+  }
+  return [];
 }
 
 function getPeople() {
