@@ -322,7 +322,6 @@
   const btnQuickSelect = document.getElementById('btn-quick-select');
   const personName = document.getElementById('person-name');
   const btnTake = document.getElementById('btn-take');
-  const btnSelectAll = document.getElementById('btn-select-all');
   const peopleList = document.getElementById('people-list');
   const peopleSection = document.getElementById('people-section');
   const viewPanel = document.getElementById('view-panel');
@@ -998,20 +997,6 @@
     takeKeys(bundleIds, name);
     personName.value = '';
   });
-
-  if (btnSelectAll) {
-    btnSelectAll.addEventListener('click', () => {
-      const checkboxes = bundleList ? bundleList.querySelectorAll('input[type="checkbox"]') : [];
-      checkboxes.forEach((cb) => {
-        if (!cb.value) return;
-        cb.checked = true;
-        selectedBundleIds.add(cb.value);
-        const label = cb.closest('.bundle-item');
-        if (label) label.classList.add('bundle-item--selected');
-      });
-      updateSelectedBundlesDisplay();
-    });
-  }
 
   if (btnQuickSelect && quickBundleSelect) {
     btnQuickSelect.addEventListener('click', () => {
