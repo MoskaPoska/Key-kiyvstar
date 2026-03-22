@@ -1017,18 +1017,18 @@
     btnQuickSelect.addEventListener('click', () => {
       const input = quickBundleSelect.value.trim();
       if (!input) {
-        alert('Введи зону_связку, напр. 1_101-1010');
+        alert('Введи зону_ключ, напр. 1_101');
         return;
       }
       const parts = input.split('_');
       if (parts.length !== 2) {
-        alert('Неправильный формат. Используй: номер_зоны_диапазон, напр. 1_101-1010');
+        alert('Неправильный формат. Используй: номер_зоны_ключ, напр. 1_101');
         return;
       }
       const zoneNum = parts[0].trim();
-      const bundleRange = parts[1].trim();
-      if (!zoneNum || !bundleRange) {
-        alert('Неправильний формат.');
+      const keyOrBundle = parts[1].trim();
+      if (!zoneNum || !keyOrBundle) {
+        alert('Неправильный формат.');
         return;
       }
       // Find zone by number
@@ -1037,15 +1037,34 @@
         alert('Зону с таким номером не найдено.');
         return;
       }
-      if (!zone.bundles.includes(bundleRange)) {
-        alert('Связку с таким диапазоном в этой зоне не найдено.');
+      // Check if it's a full bundle range (e.g., 101-1010)
+      if (zone.bundles.includes(keyOrBundle)) {
+        const bundleId = getBundleId(zone.id, keyOrBundle);
+        selectedBundleIds.add(bundleId);
+        updateSelectedBundlesDisplay();
+        renderBundleSelect();
+        quickBundleSelect.value = '';
         return;
       }
-      const bundleId = getBundleId(zone.id, bundleRange);
-      selectedBundleIds.add(bundleId);
-      updateSelectedBundlesDisplay();
-      renderBundleSelect(); // to update the checkboxes
-      quickBundleSelect.value = '';
+      // Try to find bundle by key number (e.g., 131 -> 131-1311)
+      const keyNum = parseInt(keyOrBundle, 10);
+      if (!isNaN(keyNum)) {
+        // Find bundle that starts with this key number
+        const exactBundle = zone.bundles.find(bundle => {
+          const rangeParts = bundle.split('-');
+          const start = parseInt(rangeParts[0], 10);
+          return start === keyNum;
+        });
+        if (exactBundle) {
+          const bundleId = getBundleId(zone.id, exactBundle);
+          selectedBundleIds.add(bundleId);
+          updateSelectedBundlesDisplay();
+          renderBundleSelect();
+          quickBundleSelect.value = '';
+          return;
+        }
+      }
+      alert('Связку с таким ключом в этой зоне не найдено.');
     });
     quickBundleSelect.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') btnQuickSelect.click();
