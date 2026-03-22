@@ -1046,17 +1046,31 @@
         quickBundleSelect.value = '';
         return;
       }
-      // Try to find bundle by key number (e.g., 131 -> 131-1311)
+      // Try to find bundle by key number (e.g., 132 -> 131-1311)
       const keyNum = parseInt(keyOrBundle, 10);
       if (!isNaN(keyNum)) {
-        // Find bundle that starts with this key number
-        const exactBundle = zone.bundles.find(bundle => {
+        // Find all bundles that contain this key number and pick the smallest range
+        let foundBundles = [];
+        for (const bundle of zone.bundles) {
           const rangeParts = bundle.split('-');
-          const start = parseInt(rangeParts[0], 10);
-          return start === keyNum;
-        });
-        if (exactBundle) {
-          const bundleId = getBundleId(zone.id, exactBundle);
+          if (rangeParts.length === 2) {
+            const start = parseInt(rangeParts[0], 10);
+            const end = parseInt(rangeParts[1], 10);
+            if (keyNum >= start && keyNum <= end) {
+              foundBundles.push({ bundle, size: end - start });
+            }
+          } else if (rangeParts.length === 1) {
+            const key = parseInt(rangeParts[0], 10);
+            if (key === keyNum) {
+              foundBundles.push({ bundle, size: 0 });
+            }
+          }
+        }
+        if (foundBundles.length > 0) {
+          // Sort by smallest range
+          foundBundles.sort((a, b) => a.size - b.size);
+          const bestBundle = foundBundles[0].bundle;
+          const bundleId = getBundleId(zone.id, bestBundle);
           selectedBundleIds.add(bundleId);
           updateSelectedBundlesDisplay();
           renderBundleSelect();
