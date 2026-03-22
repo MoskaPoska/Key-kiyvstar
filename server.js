@@ -171,9 +171,12 @@ function getState() {
 function getZones() {
   // Всегда загружаем зоны из data.json напрямую
   const dataFile = path.join(ROOT, 'data.json');
+  console.log('Reading zones from:', dataFile);
+  console.log('File exists:', fs.existsSync(dataFile));
   if (fs.existsSync(dataFile)) {
     try {
       const data = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
+      console.log('Zones loaded:', data.zones ? data.zones.length : 0);
       if (data.zones && Array.isArray(data.zones)) {
         return data.zones;
       }
