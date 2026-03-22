@@ -75,19 +75,15 @@ async function initDatabase() {
     )
   `);
   
-  // Check if zones exist
-  const result = db.exec('SELECT COUNT(*) as count FROM zones');
-  const zoneCount = result.length > 0 ? result[0].values[0][0] : 0;
-  
-  if (zoneCount === 0) {
-    const defaultZones = getDefaultZones();
-    const stmt = db.prepare('INSERT INTO zones (id, name, bundles) VALUES (?, ?, ?)');
-    defaultZones.forEach(z => {
-      stmt.run([z.id, z.name, JSON.stringify(z.bundles)]);
-    });
-    stmt.free();
-    saveDatabase();
-  }
+  // Всегда загружаем зоны из data.json
+  db.run('DELETE FROM zones');
+  const defaultZones = getDefaultZones();
+  const stmt = db.prepare('INSERT INTO zones (id, name, bundles) VALUES (?, ?, ?)');
+  defaultZones.forEach(z => {
+    stmt.run([z.id, z.name, JSON.stringify(z.bundles)]);
+  });
+  stmt.free();
+  saveDatabase();
   
   console.log('Database ready');
 }
@@ -103,6 +99,20 @@ function saveDatabase() {
 }
 
 function getDefaultZones() {
+  // Загружаем зоны из data.json
+  const dataFile = path.join(ROOT, 'data.json');
+  if (fs.existsSync(dataFile)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
+      if (data.zones && Array.isArray(data.zones)) {
+        return data.zones;
+      }
+    } catch (e) {
+      console.error('Error reading data.json:', e);
+    }
+  }
+  
+  // Значения по умолчанию
   return [
     { id: 'zone_1', name: 'Зона 1', bundles: ['101-1010', '101-105', '131-1311', '141-1410', '151-1510', '161-1611', '171-179', '181-1812', '191-1912'] },
     { id: 'zone_2', name: 'Зона 2', bundles: ['101-107', '111-116', '121-126', '131-136', '141-146', '151-156', '161-166', '171-180', '1101-1106', '1111-1113', '1121-1127', '1131-1138', '1141-1145'] },
