@@ -101,7 +101,7 @@ body {
 
 .search-input {
   flex: 1;
-  max-width: 280px;
+  max-width: 260px;
   padding: 8px 16px;
   font-family: var(--font);
   font-size: 14px;
