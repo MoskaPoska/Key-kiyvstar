@@ -1142,18 +1142,25 @@ body {
 }
 
 .modal-close {
-  background: none;
+  background: #ef4444;
   border: none;
-  color: #9ca3af;
+  color: white;
   font-size: 1.5rem;
   cursor: pointer;
   padding: 0;
   line-height: 1;
-  transition: color 0.2s;
+  transition: color 0.2s, background 0.2s;
+  border-radius: 4px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .modal-close:hover {
-  color: #111827;
+  background: #dc2626;
+  color: white;
 }
 
 .modal-body {
