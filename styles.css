@@ -75,7 +75,7 @@ body {
   background: rgba(30, 41, 59, 0.94);
   border: 1px solid rgba(52, 65, 85, 0.7);
   border-radius: var(--radius);
-  padding: 1rem;
+  padding: 1.25rem;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
 }
 
@@ -199,6 +199,7 @@ body {
 .field {
   flex: 1;
   min-width: 140px;
+  margin-bottom: 0.25rem;
 }
 
 .field label {
