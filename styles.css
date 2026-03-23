@@ -7,6 +7,7 @@
   --text-muted: #94a3b8;
   --accent: #0ea5e9;
   --accent-hover: #38bdf8;
+  --secondary: #7dd3fc;
   --take: #10b981;
   --return: #a78bfa;
   --danger: #ef4444;
@@ -249,7 +250,7 @@ body {
 }
 
 .bundle-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(125, 211, 252, 0.08);
 }
 
 .bundle-item--selected {
@@ -308,7 +309,7 @@ body {
   padding: 0.6rem;
   border: 1px solid rgba(52, 65, 85, 0.7);
   border-radius: calc(var(--radius) * 0.85);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(125, 211, 252, 0.06);
 }
 
 .selected-bundles--visible {
@@ -347,14 +348,14 @@ body {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(125, 211, 252, 0.2);
+  border: 1px solid rgba(125, 211, 252, 0.3);
   cursor: pointer;
   color: var(--text);
 }
 
 .selected-bundles__remove:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(125, 211, 252, 0.35);
 }
 
 .bundle-label {
@@ -400,7 +401,7 @@ body {
 
 .btn-take {
   background: var(--take);
-  color: #fff;
+  color: var(--secondary);
 }
 
 #toggle-history-btn.btn-take {
@@ -413,7 +414,7 @@ body {
 
 #toggle-history.btn-take {
   background: #ffc107;
-  color: #ffffff;
+  color: #0f172a;
 }
 
 #toggle-history.btn-take:hover {
@@ -426,7 +427,7 @@ body {
 
 .btn-return {
   background: var(--return);
-  color: white;
+  color: var(--secondary);
   border: none;
   padding: 8px 16px;
   font-size: 14px;
@@ -440,7 +441,7 @@ body {
 
 .btn-add {
   background: var(--accent);
-  color: #fff;
+  color: var(--secondary);
 }
 
 .btn-add:hover {
@@ -448,8 +449,8 @@ body {
 }
 
 .btn-secondary {
-  background: white;
-  color: #6c757d;
+  background: var(--secondary);
+  color: #0f172a;
   border: 1px solid #6c757d;
   padding: 8px 16px;
   font-size: 14px;
@@ -458,7 +459,7 @@ body {
 
 .btn-secondary:hover {
   background: #6c757d;
-  color: white;
+  color: var(--secondary);
 }
 
 /* People list */
@@ -494,7 +495,7 @@ body {
 .person-chip.active {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--secondary);
 }
 
 .person-chip .count {
@@ -509,7 +510,7 @@ body {
   padding: 1rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(125, 211, 252, 0.06);
 }
 
 .return-panel h3 {
@@ -748,7 +749,7 @@ body {
 }
 
 .keys-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(125, 211, 252, 0.05);
 }
 
 .keys-table .key-id {
@@ -1050,8 +1051,8 @@ body {
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  background-color: #ffffff;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-color: #334155;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237dd3fc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.75rem center;
   padding: 8px 36px 8px 16px;
@@ -1078,8 +1079,8 @@ body {
 .person-select-row .person-select option {
   padding: 0.75rem;
   font-family: 'Inter', 'Roboto', system-ui, sans-serif;
-  color: #111827;
-  background: #ffffff;
+  color: var(--secondary);
+  background: #1e293b;
 }
 
 .btn-manage {
@@ -1113,7 +1114,7 @@ body {
 }
 
 .modal {
-  background: #ffffff;
+  background: #1e293b;
   border-radius: 12px;
   width: 90%;
   max-width: 480px;
@@ -1121,7 +1122,7 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #334155;
 }
 
 .modal-header {
@@ -1172,8 +1173,8 @@ body {
   font-size: 0.9375rem;
   border: 1px solid #d1d5db;
   border-radius: 8px;
-  background: #ffffff;
-  color: #111827;
+  background: #334155;
+  color: var(--secondary);
   font-family: 'Inter', 'Roboto', system-ui, sans-serif;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
@@ -1194,7 +1195,7 @@ body {
   font-weight: 500;
   font-family: 'Inter', 'Roboto', system-ui, sans-serif;
   background: #3b82f6;
-  color: white;
+  color: var(--secondary);
   border: none;
   border-radius: 8px;
   cursor: pointer;
