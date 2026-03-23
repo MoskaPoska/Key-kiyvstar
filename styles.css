@@ -282,9 +282,12 @@ body {
   border-radius: 4px;
 }
 
-.bundle-item input {
+.bundle-item input[type="checkbox"] {
   flex-shrink: 0;
-  margin-right: 6px;
+  margin-right: 8px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
 }
 
 .bundle-item label {
