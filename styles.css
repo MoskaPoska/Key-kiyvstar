@@ -989,6 +989,16 @@ body {
     text-align: center;
   }
 
+  /* Section header mobile */
+  .section-header {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .section-header .btn {
+    flex: 0 0 auto;
+  }
+
   /* Action panels mobile */
   .action-panel--left,
   .action-panel--right {
