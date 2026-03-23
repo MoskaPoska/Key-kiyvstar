@@ -62,6 +62,7 @@ async function initDatabase() {
         comment TEXT DEFAULT ''
       )
     `);
+    console.log('State table created');
     
     await pool.query(`
       CREATE TABLE IF NOT EXISTS people (
@@ -189,6 +190,7 @@ async function addPersonToDB(name, phone) {
       'INSERT INTO people (name, phone) VALUES ($1, $2) RETURNING *',
       [name, phone || '']
     );
+    console.log('Person added to PostgreSQL:', name);
     return result.rows[0];
   } catch (e) {
     console.error('Error adding person:', e);
