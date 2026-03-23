@@ -39,10 +39,13 @@ async function initDatabase() {
     if (fs.existsSync(DB_FILE)) {
       const fileBuffer = fs.readFileSync(DB_FILE);
       db = new SQL.Database(fileBuffer);
+      console.log('Database loaded from:', DB_FILE);
     } else {
       db = new SQL.Database();
+      console.log('New database created');
     }
   } catch (e) {
+    console.error('Error loading database:', e);
     db = new SQL.Database();
   }
   
@@ -88,9 +91,16 @@ async function initDatabase() {
 
 function saveDatabase() {
   try {
+    // Check if directory exists
+    const dir = path.dirname(DB_FILE);
+    if (!fs.existsSync(dir)) {
+      console.log('Creating directory:', dir);
+      fs.mkdirSync(dir, { recursive: true });
+    }
     const data = db.export();
     const buffer = Buffer.from(data);
     fs.writeFileSync(DB_FILE, buffer);
+    console.log('Database saved to:', DB_FILE);
   } catch (e) {
     console.error('Error saving database:', e);
   }
