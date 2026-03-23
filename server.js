@@ -298,6 +298,7 @@ function broadcastUpdate() {
 // ----------------- HTTP server -----------------
 
 const server = http.createServer(async (req, res) => {
+  console.log('Request:', req.method, req.url);
   if (!db) {
     res.writeHead(503, { 'Content-Type': 'text/plain' });
     res.end('Database not ready');
