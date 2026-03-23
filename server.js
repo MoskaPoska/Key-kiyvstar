@@ -5,8 +5,10 @@ const path = require('path');
 const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
 // Use Railway persistent volume if available, otherwise use local directory
-const DB_FILE = process.env.RAILWAY_VOLUME_MOUNT_PATH
-  ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'keytracker.db')
+// Try RAILWAY_VOLUME_MOUNT_PATH first, then fall back to custom variable
+const volumePath = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.keytracker_data;
+const DB_FILE = volumePath
+  ? path.join(volumePath, 'keytracker.db')
   : path.join(ROOT, 'keytracker.db');
 
 const MIME = {
