@@ -49,18 +49,20 @@
             </div>
             <div class="field">
               <label for="person-name">ФИО</label>
-              <div class="person-select-row">
-                <select id="person-name" class="person-select">
-                  <option value="" disabled selected>Выбери сотрудника</option>
-                </select>
-                <button type="button" class="btn btn-manage" id="btn-manage-people" title="Управление сотрудниками">⚙️</button>
+              <div class="person-select-row" style="justify-content: space-between;">
+                <div style="display: flex; gap: 8px; flex: 1;">
+                  <select id="person-name" class="person-select">
+                    <option value="" disabled selected>Выбери сотрудника</option>
+                  </select>
+                  <button type="button" class="btn btn-manage" id="btn-manage-people" title="Управление сотрудниками">⚙️</button>
+                </div>
+                <button type="button" class="btn btn-take" id="toggle-history-btn">История</button>
               </div>
             </div>
 
             <div class="action-row action-row--buttons">
               <div class="buttons">
                 <button type="button" class="btn btn-take" id="btn-take">Взять</button>
-                <button type="button" class="btn btn-take" id="toggle-history-btn">История</button>
               </div>
             </div>
           </div>
