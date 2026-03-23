@@ -7,7 +7,7 @@
   --text-muted: #94a3b8;
   --accent: #0ea5e9;
   --accent-hover: #38bdf8;
-  --secondary: #f5f5f5;
+  --secondary: #ede6e6;
   --take: #10b981;
   --return: #a78bfa;
   --danger: #ef4444;
@@ -414,7 +414,7 @@ body {
 
 #toggle-history.btn-take {
   background: #ffc107;
-  color: #ffffff;
+  color: #111827;
 }
 
 #toggle-history.btn-take:hover {
@@ -1051,7 +1051,7 @@ body {
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  background-color: #ffffff;
+  background-color: #ede6e6;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.75rem center;
@@ -1080,7 +1080,7 @@ body {
   padding: 0.75rem;
   font-family: 'Inter', 'Roboto', system-ui, sans-serif;
   color: #111827;
-  background: #f5f5f5;
+  background: #ede6e6;
 }
 
 .btn-manage {
@@ -1114,7 +1114,7 @@ body {
 }
 
 .modal {
-  background: #f5f5f5;
+  background: #ede6e6;
   border-radius: 12px;
   width: 90%;
   max-width: 480px;
@@ -1173,7 +1173,7 @@ body {
   font-size: 0.9375rem;
   border: 1px solid #d1d5db;
   border-radius: 8px;
-  background: #ffffff;
+  background: #ede6e6;
   color: #111827;
   font-family: 'Inter', 'Roboto', system-ui, sans-serif;
   transition: border-color 0.2s, box-shadow 0.2s;
