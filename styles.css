@@ -1048,9 +1048,9 @@ body {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.75rem center;
-  padding: 0.625rem 2.5rem 0.625rem 0.875rem;
-  font-size: 0.9375rem;
-  font-family: 'Inter', 'Roboto', system-ui, sans-serif;
+  padding: 8px 36px 8px 16px;
+  font-size: 14px;
+  font-family: var(--font);
   color: #111827;
   border: 1px solid #d1d5db;
   border-radius: 8px;
