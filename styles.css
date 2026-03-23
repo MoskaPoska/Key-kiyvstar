@@ -101,7 +101,7 @@ body {
 
 .search-input {
   flex: 0 0 auto;
-  width: 220px;
+  width: 230px;
   padding: 8px 12px;
   font-family: var(--font);
   font-size: 14px;
