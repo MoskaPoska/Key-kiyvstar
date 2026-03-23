@@ -411,9 +411,6 @@
         });
       }
     }
-    if (selectedPerson) {
-      list = list.filter((b) => state[b.bundleId] && state[b.bundleId].personName === selectedPerson);
-    }
     return list;
   }
 
