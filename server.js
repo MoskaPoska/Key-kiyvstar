@@ -11,6 +11,11 @@ const DB_FILE = volumePath
   ? path.join(volumePath, 'keytracker.db')
   : path.join(ROOT, 'keytracker.db');
 
+console.log('DB_FILE:', DB_FILE);
+console.log('volumePath:', volumePath);
+console.log('RAILWAY_VOLUME_MOUNT_PATH:', process.env.RAILWAY_VOLUME_MOUNT_PATH);
+console.log('keytracker_data:', process.env.keytracker_data);
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
