@@ -1084,10 +1084,12 @@
           updateSelectedBundlesDisplay();
           renderBundleSelect();
           quickBundleSelect.value = '';
-          return;
+        } else {
+          alert('Ключ ' + keyOrBundle + ' не найден в зоне ' + zone.name);
         }
+      } else {
+        alert('Ключ ' + keyOrBundle + ' не найден в зоне ' + zone.name);
       }
-      alert('Связку с таким ключом в этой зоне не найдено.');
     });
     quickBundleSelect.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') btnQuickSelect.click();
