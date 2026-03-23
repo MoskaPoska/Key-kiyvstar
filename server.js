@@ -306,6 +306,7 @@ const server = http.createServer(async (req, res) => {
 
   // API endpoints
   if (req.url.startsWith('/api/')) {
+    console.log('API request:', req.method, req.url);
     const method = req.method || 'GET';
 
     // SSE endpoint
