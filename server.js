@@ -298,7 +298,6 @@ function broadcastUpdate() {
 // ----------------- HTTP server -----------------
 
 const server = http.createServer(async (req, res) => {
-  console.log('Request:', req.method, req.url);
   if (!db) {
     res.writeHead(503, { 'Content-Type': 'text/plain' });
     res.end('Database not ready');
@@ -307,7 +306,6 @@ const server = http.createServer(async (req, res) => {
 
   // API endpoints
   if (req.url.startsWith('/api/')) {
-    console.log('API request:', req.method, req.url);
     const method = req.method || 'GET';
 
     // SSE endpoint
