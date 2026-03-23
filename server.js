@@ -14,6 +14,8 @@ console.log('Starting server...');
 
 // Check for PostgreSQL connection string
 const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+console.log('DATABASE_URL:', DATABASE_URL ? 'set' : 'not set');
+console.log('POSTGRES_URL:', process.env.POSTGRES_URL ? 'set' : 'not set');
 
 if (DATABASE_URL) {
   console.log('Using PostgreSQL database');
