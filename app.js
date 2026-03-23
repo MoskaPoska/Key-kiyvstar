@@ -350,6 +350,7 @@
   const historyPersonFilter = document.getElementById('history-person-filter');
 
   let historyFilterPerson = '';
+  let historyFilterBundle = '';
   let selectedPerson = null;
   let searchQuery = '';
   let bundleSearchQuery = '';
@@ -496,10 +497,14 @@
     }
     historyList.innerHTML = '';
     
-    // Filter by selected person if any
-    const filteredHistory = historyFilterPerson 
-      ? history.filter(h => h.personName === historyFilterPerson)
-      : history;
+    // Filter by bundle and person
+    let filteredHistory = history;
+    if (historyFilterBundle) {
+      filteredHistory = filteredHistory.filter(h => h.bundleId && h.bundleId.includes(historyFilterBundle));
+    }
+    if (historyFilterPerson) {
+      filteredHistory = filteredHistory.filter(h => h.personName === historyFilterPerson);
+    }
     
     filteredHistory.forEach(h => {
       const item = document.createElement('div');
@@ -1188,6 +1193,15 @@
   if (historyPersonFilter) {
     historyPersonFilter.addEventListener('change', () => {
       historyFilterPerson = historyPersonFilter.value;
+      renderHistory();
+    });
+  }
+  
+  // History bundle filter handler
+  const historyBundleFilter = document.getElementById('history-bundle-filter');
+  if (historyBundleFilter) {
+    historyBundleFilter.addEventListener('input', () => {
+      historyFilterBundle = historyBundleFilter.value.trim();
       renderHistory();
     });
   }
