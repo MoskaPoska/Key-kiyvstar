@@ -9,11 +9,15 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "keywords": ["keys", "tracker", "kyivstar"],
+  "keywords": [
+    "keys",
+    "tracker",
+    "kyivstar"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "pg": "^8.11.0",
+    "pg": "^8.20.0",
     "sql.js": "^1.10.0"
   }
 }
