@@ -284,6 +284,7 @@ body {
 
 .bundle-item input {
   flex-shrink: 0;
+  margin-left: 0;
 }
 
 .bundle-item label {
