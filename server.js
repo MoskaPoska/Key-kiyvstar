@@ -116,7 +116,7 @@ async function getStateFromDB() {
     for (const row of result.rows) {
       state[row.bundle_id] = {
         personName: row.person_name,
-        takenAt: row.taken_at,
+        takenAt: row.taken_at ? Number(row.taken_at) : null,
         comment: row.comment
       };
     }
@@ -244,7 +244,7 @@ async function getHistoryFromDB() {
       bundleId: row.bundle_id,
       personName: row.person_name,
       action: row.action,
-      timestamp: row.timestamp
+      timestamp: Number(row.timestamp)
     }));
   } catch (e) {
     console.error('Error getting history:', e);
