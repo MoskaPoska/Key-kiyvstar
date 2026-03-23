@@ -807,7 +807,7 @@ body {
 }
 
 .add-key-row .zone-select {
-  max-width: 100px;
+  max-width: 80px;
   padding: 0.6rem 1rem;
   font-family: var(--font);
   font-size: 1rem;
