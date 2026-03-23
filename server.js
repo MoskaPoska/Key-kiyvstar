@@ -31,22 +31,27 @@ let db = null;
 let SQL = null;
 
 async function initDatabase() {
-  const initSqlJs = require('sql.js');
-  SQL = await initSqlJs();
-  
-  // Load existing database or create new one
   try {
-    if (fs.existsSync(DB_FILE)) {
-      const fileBuffer = fs.readFileSync(DB_FILE);
-      db = new SQL.Database(fileBuffer);
-      console.log('Database loaded from:', DB_FILE);
-    } else {
+    const initSqlJs = require('sql.js');
+    SQL = await initSqlJs();
+    
+    // Load existing database or create new one
+    try {
+      if (fs.existsSync(DB_FILE)) {
+        const fileBuffer = fs.readFileSync(DB_FILE);
+        db = new SQL.Database(fileBuffer);
+        console.log('Database loaded from:', DB_FILE);
+      } else {
+        db = new SQL.Database();
+        console.log('New database created at:', DB_FILE);
+      }
+    } catch (e) {
+      console.error('Error loading database:', e);
       db = new SQL.Database();
-      console.log('New database created');
     }
   } catch (e) {
-    console.error('Error loading database:', e);
-    db = new SQL.Database();
+    console.error('Failed to initialize database:', e);
+    throw e;
   }
   
   // Create tables
@@ -595,9 +600,19 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
+// Handle uncaught errors
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', reason);
+});
+
 // Start server
+console.log('Starting server on port:', PORT);
 initDatabase().then(() => {
-  server.listen(PORT, () => {
+  server.listen(PORT, '0.0.0.0', () => {
     console.log('Server running on port ' + PORT);
   });
 }).catch(err => {
