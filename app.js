@@ -347,7 +347,9 @@
   const historySection = document.getElementById('history-section');
   const toggleHistoryBtn = document.getElementById('toggle-history-btn');
   const toggleHistoryHideBtn = document.getElementById('toggle-history');
+  const historyPersonFilter = document.getElementById('history-person-filter');
 
+  let historyFilterPerson = '';
   let selectedPerson = null;
   let searchQuery = '';
   let bundleSearchQuery = '';
@@ -493,7 +495,13 @@
       return;
     }
     historyList.innerHTML = '';
-    history.forEach(h => {
+    
+    // Filter by selected person if any
+    const filteredHistory = historyFilterPerson 
+      ? history.filter(h => h.personName === historyFilterPerson)
+      : history;
+    
+    filteredHistory.forEach(h => {
       const item = document.createElement('div');
       item.className = 'history-item';
       const date = new Date(h.timestamp);
@@ -918,6 +926,7 @@
     updateSelectedBundlesDisplay();
     renderPeople();
     renderViewPanel();
+    updateHistoryPersonFilter();
     // оновлення select для додавання связки
     if (newBundleZone) {
       newBundleZone.innerHTML = '';
@@ -927,6 +936,24 @@
         opt.textContent = z.name;
         newBundleZone.appendChild(opt);
       });
+    }
+  }
+
+  function updateHistoryPersonFilter() {
+    if (!historyPersonFilter) return;
+    const currentValue = historyPersonFilter.value;
+    historyPersonFilter.innerHTML = '<option value="">Все сотрудники</option>';
+    // Get unique people from history
+    const uniquePeople = [...new Set(history.map(h => h.personName).filter(Boolean))].sort();
+    uniquePeople.forEach(person => {
+      const opt = document.createElement('option');
+      opt.value = person;
+      opt.textContent = person;
+      historyPersonFilter.appendChild(opt);
+    });
+    // Restore selection if still valid
+    if (currentValue && uniquePeople.includes(currentValue)) {
+      historyPersonFilter.value = currentValue;
     }
   }
 
@@ -1152,6 +1179,14 @@
       if (toggleHistoryBtn) {
         toggleHistoryBtn.classList.remove('active');
       }
+    });
+  }
+
+  // History person filter handler
+  if (historyPersonFilter) {
+    historyPersonFilter.addEventListener('change', () => {
+      historyFilterPerson = historyPersonFilter.value;
+      renderHistory();
     });
   }
 

@@ -1284,6 +1284,26 @@ body {
   margin-top: 1.5rem;
 }
 
+.history-filter {
+  margin-bottom: 1rem;
+}
+
+.history-person-select {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #ede6e6;
+  color: #111827;
+  font-family: var(--font);
+  cursor: pointer;
+}
+
+.history-person-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 .section-header {
   display: flex;
   justify-content: space-between;
