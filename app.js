@@ -934,7 +934,7 @@
 
   function getBundleUsageCount(bundleId) {
     if (!history || !history.length) return 0;
-    return history.filter(h => h.bundleId === bundleId && h.action === 'взять').length;
+    return history.filter(h => h.bundleId === bundleId && h.action === 'take').length;
   }
   
   function renderOverdueNotification() {
