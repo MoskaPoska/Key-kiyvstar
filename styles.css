@@ -310,6 +310,12 @@ body {
   margin-left: 0.25rem;
 }
 
+.bundle-usage {
+  color: #666;
+  font-size: 0.85em;
+  font-weight: 500;
+}
+
 .comment-input {
   width: 150px;
   margin-top: 0.25rem;

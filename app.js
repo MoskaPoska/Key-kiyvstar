@@ -666,6 +666,11 @@
       if (taken && bundleState && bundleState.personName) {
         textContent += ` (у ${bundleState.personName})`;
       }
+      // Показываем количество использований
+      const usageCount = getBundleUsageCount(b.bundleId);
+      if (usageCount > 0) {
+        textContent += ` [×${usageCount}]`;
+      }
       const text = document.createElement('span');
       text.textContent = textContent;
 
@@ -806,7 +811,9 @@
 
       const label = document.createElement('span');
       label.className = 'bundle-label';
-      label.textContent = `${b.zoneName} — ТКД ${b.tkdRange}`;
+      const usageCount = getBundleUsageCount(b.bundleId);
+      const usageText = usageCount > 0 ? ` [×${usageCount}]` : '';
+      label.textContent = `${b.zoneName} — ТКД ${b.tkdRange}${usageText}`;
 
       // Comment input
       const commentInput = document.createElement('input');
@@ -925,6 +932,11 @@
     return div.innerHTML;
   }
 
+  function getBundleUsageCount(bundleId) {
+    if (!history || !history.length) return 0;
+    return history.filter(h => h.bundleId === bundleId && h.action === 'взять').length;
+  }
+  
   function renderOverdueNotification() {
     const notification = document.getElementById('overdue-notification');
     const countEl = document.getElementById('overdue-count');
