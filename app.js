@@ -925,12 +925,39 @@
     return div.innerHTML;
   }
 
+  function renderOverdueNotification() {
+    const notification = document.getElementById('overdue-notification');
+    const countEl = document.getElementById('overdue-count');
+    const listEl = document.getElementById('overdue-list');
+    if (!notification || !countEl || !listEl) return;
+    
+    const overdueItems = [];
+    for (const [bundleId, data] of Object.entries(state)) {
+      if (data && data.takenAt && isOverdue(data.takenAt)) {
+        const days = getDaysOverdue(data.takenAt);
+        overdueItems.push({ bundleId, personName: data.personName, days });
+      }
+    }
+    
+    if (overdueItems.length === 0) {
+      notification.style.display = 'none';
+      return;
+    }
+    
+    notification.style.display = 'block';
+    countEl.textContent = overdueItems.length;
+    listEl.textContent = overdueItems.map(item => 
+      item.bundleId.split('_').slice(2).join('_') + ' (' + item.personName + ', ' + item.days + ' дн.)'
+    ).join(', ');
+  }
+  
   function render() {
     renderZoneSelect();
     renderBundleSelect();
     updateSelectedBundlesDisplay();
     renderPeople();
     renderViewPanel();
+    renderOverdueNotification();
     updateHistoryPersonFilter();
     // оновлення select для додавання связки
     if (newBundleZone) {

@@ -55,6 +55,42 @@ body {
   color: var(--text-muted);
 }
 
+/* Overdue notification */
+.overdue-notification {
+  background: linear-gradient(90deg, #fef3c7 0%, #fde68a 100%);
+  border-bottom: 1px solid #f59e0b;
+  padding: 0.75rem 0;
+  color: #92400e;
+}
+
+.overdue-notification .container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.overdue-icon {
+  font-size: 1.2rem;
+}
+
+.overdue-text {
+  font-weight: 600;
+}
+
+.overdue-count {
+  background: #ef4444;
+  color: white;
+  padding: 0.125rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.overdue-list {
+  font-size: 0.9rem;
+}
+
 /* Sections */
 .main section {
   margin-bottom: 1rem;
