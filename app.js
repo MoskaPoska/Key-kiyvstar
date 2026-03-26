@@ -1,6 +1,22 @@
 (function () {
   const API_BASE = '';
 
+  // Функция проверки - является ли выбранный сотрудник админом
+  function isAdmin() {
+    if (!selectedPerson) return false;
+    const person = people.find(p => p.name === selectedPerson);
+    return person && person.isAdmin === true;
+  }
+
+  // Обновить класс body для отображения админ-элементов
+  function updateAdminMode() {
+    if (isAdmin()) {
+      document.body.classList.add('admin-mode');
+    } else {
+      document.body.classList.remove('admin-mode');
+    }
+  }
+
   // Дані приходять з сервера: список зон і поточний стан
   let zones = [];
   let state = {}; // { "zone_4_101-1010": { personName: "Іван Петренко", takenAt: 1741234567890 } }
@@ -87,6 +103,7 @@
       if (!res.ok) throw new Error('Failed to load people');
       people = await res.json();
       renderPeopleSelect();
+      updateAdminMode();
     } catch (e) {
       console.error('Ошибка загрузки людей', e);
       people = [];
@@ -235,6 +252,7 @@
   }
 
   async function addPerson(name, phone) {
+    if (!isAdmin()) return;
     const n = (name || '').trim();
     const p = (phone || '').trim();
     if (!n) return;
@@ -257,7 +275,8 @@
     }
   }
 
-  async function updatePerson(id, name, phone) {
+  async function updatePerson(id, name, phone, isAdminValue) {
+    if (!isAdmin()) return;
     const n = (name || '').trim();
     const p = (phone || '').trim();
     if (!n) return;
@@ -265,7 +284,7 @@
       const res = await fetch(API_BASE + '/api/people/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, name: n, phone: p }),
+        body: JSON.stringify({ id, name: n, phone: p, isAdmin: isAdminValue || false }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -282,6 +301,7 @@
   }
 
   async function deletePerson(id) {
+    if (!isAdmin()) return;
     try {
       const res = await fetch(API_BASE + '/api/people/delete', {
         method: 'POST',
@@ -570,13 +590,19 @@
       peopleManageList.innerHTML = '<p class="empty-message">Список сотрудников пуст</p>';
       return;
     }
+    const isCurrentUserAdmin = isAdmin();
     people.forEach((p) => {
       const item = document.createElement('div');
       item.className = 'person-manage-item';
       item.innerHTML = `
         <span class="person-manage-name">${escapeHtml(p.name)}</span>
+        ${isCurrentUserAdmin ? `
+        <label class="admin-checkbox">
+          <input type="checkbox" data-id="${p.id}" ${p.isAdmin ? 'checked' : ''}> Админ
+        </label>
+        ` : ''}
         <div class="person-manage-actions">
-          <button type="button" class="btn-edit" data-id="${p.id}" data-name="${escapeHtml(p.name)}" title="Редактировать">✏️</button>
+          <button type="button" class="btn-edit" data-id="${p.id}" data-name="${escapeHtml(p.name)}" data-admin="${p.isAdmin || false}" title="Редактировать">✏️</button>
           <button type="button" class="btn-delete" data-id="${p.id}" title="Удалить">🗑️</button>
         </div>
       `;
@@ -585,18 +611,37 @@
     // Add event listeners
     peopleManageList.querySelectorAll('.btn-edit').forEach(btn => {
       btn.addEventListener('click', () => {
+        if (!isAdmin()) return;
         const id = parseInt(btn.dataset.id);
+        const person = people.find(p => p.id === id);
         const newName = prompt('Введи новое ФИО:', btn.dataset.name);
         if (newName && newName.trim()) {
-          updatePerson(id, newName.trim());
+          const makeAdmin = confirm('Сделать этого сотрудника админом?');
+          updatePerson(id, newName.trim(), person ? person.phone : '', makeAdmin);
         }
       });
     });
     peopleManageList.querySelectorAll('.btn-delete').forEach(btn => {
       btn.addEventListener('click', () => {
+        if (!isAdmin()) return;
         const id = parseInt(btn.dataset.id);
         if (confirm('Удалить сотрудника ' + btn.closest('.person-manage-item').querySelector('.person-manage-name').textContent + '?')) {
           deletePerson(id);
+        }
+      });
+    });
+    // Admin checkbox handler
+    peopleManageList.querySelectorAll('.admin-checkbox input').forEach(checkbox => {
+      checkbox.addEventListener('change', () => {
+        if (!isAdmin()) {
+          checkbox.checked = !checkbox.checked;
+          alert('Только админ может изменять статус админа');
+          return;
+        }
+        const id = parseInt(checkbox.dataset.id);
+        const person = people.find(p => p.id === id);
+        if (person) {
+          updatePerson(id, person.name, person.phone, checkbox.checked);
         }
       });
     });
@@ -690,6 +735,7 @@
   }
 
   function renderPeople() {
+    updateAdminMode();
     const people = getPeopleWithKeys();
     peopleList.innerHTML = '';
     
@@ -1244,6 +1290,8 @@
       renderHistory();
     });
   }
+
+  // Инициализация
 
   load();
   render();

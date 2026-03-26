@@ -15,6 +15,15 @@
   --font: 'Manrope', system-ui, sans-serif;
 }
 
+/* Admin-only elements - hidden by default, shown in admin mode */
+.admin-only {
+  display: none;
+}
+
+body.admin-mode .admin-only {
+  display: inline-flex;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -23,9 +32,10 @@ body {
   margin: 0;
   min-height: 100vh;
   font-family: var(--font);
-  background: linear-gradient(180deg, #0c1221 0%, #0a141f 60%, #0f172a 100%);
+  background: var(--bg);
   color: var(--text);
   line-height: 1.4;
+  transition: background-color 0.3s, color 0.3s;
 }
 
 .container {
@@ -53,6 +63,32 @@ body {
   margin: 0.25rem 0 0;
   font-size: 0.9rem;
   color: var(--text-muted);
+}
+
+.header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mode-toggle {
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.mode-toggle:hover {
+  background: var(--accent);
+  transform: scale(1.05);
+}
+
+.mode-toggle.admin-mode {
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 /* Overdue notification */

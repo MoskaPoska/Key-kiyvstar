@@ -68,7 +68,8 @@ async function initDatabase() {
       CREATE TABLE IF NOT EXISTS people (
         id SERIAL PRIMARY KEY,
         name TEXT NOT NULL UNIQUE,
-        phone TEXT DEFAULT ''
+        phone TEXT DEFAULT '',
+        is_admin BOOLEAN DEFAULT FALSE
       )
     `);
     
@@ -170,7 +171,8 @@ async function getPeopleFromDB() {
     return result.rows.map(row => ({
       id: row.id,
       name: row.name,
-      phone: row.phone
+      phone: row.phone,
+      isAdmin: row.is_admin || false
     }));
   } catch (e) {
     console.error('Error getting people:', e);
@@ -180,7 +182,7 @@ async function getPeopleFromDB() {
 
 async function addPersonToDB(name, phone) {
   if (!pool) {
-    const person = { id: memoryId.people++, name, phone };
+    const person = { id: memoryId.people++, name, phone, isAdmin: false };
     memoryData.people.push(person);
     return person;
   }
@@ -198,7 +200,7 @@ async function addPersonToDB(name, phone) {
   }
 }
 
-async function updatePersonInDB(id, name, phone) {
+async function updatePersonInDB(id, name, phone, isAdmin) {
   if (!pool) {
     const person = memoryData.people.find(p => p.id === id);
     if (person) {
@@ -210,8 +212,8 @@ async function updatePersonInDB(id, name, phone) {
   
   try {
     await pool.query(
-      'UPDATE people SET name = $1, phone = $2 WHERE id = $3',
-      [name, phone || '', id]
+      'UPDATE people SET name = $1, phone = $2, is_admin = $3 WHERE id = $4',
+      [name, phone || '', isAdmin || false, id]
     );
   } catch (e) {
     console.error('Error updating person:', e);
@@ -454,9 +456,9 @@ const server = http.createServer(async (req, res) => {
     if (req.url === '/api/people/update' && method === 'POST') {
       try {
         const body = await parseBody(req);
-        const { id, name, phone } = body;
+        const { id, name, phone, isAdmin } = body;
         
-        await updatePersonInDB(id, name, phone);
+        await updatePersonInDB(id, name, phone, isAdmin);
         sendJson(200, { ok: true });
       } catch (e) {
         sendJson(500, { error: 'Failed to update person' });
@@ -473,6 +475,44 @@ const server = http.createServer(async (req, res) => {
         sendJson(200, { ok: true });
       } catch (e) {
         sendJson(500, { error: 'Failed to delete person' });
+      }
+      return;
+    }
+
+    // Set admin endpoint (requires secret key)
+    if (req.url === '/api/set-admin' && method === 'POST') {
+      try {
+        const body = await parseBody(req);
+        const { name, secret } = body;
+        
+        // Secret key from environment variable or default
+        const ADMIN_SECRET = process.env.ADMIN_SECRET || 'keytracker-admin-2024';
+        
+        if (secret !== ADMIN_SECRET) {
+          sendJson(403, { error: 'Invalid secret key' });
+          return;
+        }
+        
+        if (!name) {
+          sendJson(400, { error: 'Name is required' });
+          return;
+        }
+        
+        // Find person and update is_admin
+        if (pool) {
+          await pool.query(
+            'UPDATE people SET is_admin = true WHERE name = $1',
+            [name]
+          );
+        } else {
+          const person = memoryData.people.find(p => p.name === name);
+          if (person) person.isAdmin = true;
+        }
+        
+        console.log('Admin set for:', name);
+        sendJson(200, { ok: true, message: name + ' теперь админ' });
+      } catch (e) {
+        sendJson(500, { error: 'Failed to set admin' });
       }
       return;
     }
