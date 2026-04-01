@@ -252,7 +252,6 @@
   }
 
   async function addPerson(name, phone) {
-    if (!isAdmin()) return;
     const n = (name || '').trim();
     const p = (phone || '').trim();
     if (!n) return;
@@ -276,7 +275,6 @@
   }
 
   async function updatePerson(id, name, phone, isAdminValue) {
-    if (!isAdmin()) return;
     const n = (name || '').trim();
     const p = (phone || '').trim();
     if (!n) return;
@@ -301,7 +299,6 @@
   }
 
   async function deletePerson(id) {
-    if (!isAdmin()) return;
     try {
       const res = await fetch(API_BASE + '/api/people/delete', {
         method: 'POST',
@@ -447,20 +444,6 @@
       hour: '2-digit',
       minute: '2-digit',
     });
-  }
-
-  function isOverdue(takenAt) {
-    if (!takenAt) return false;
-    const now = Date.now();
-    const TWO_DAYS = 2 * 24 * 60 * 60 * 1000; // 2 дня в миллисекундах
-    return (now - takenAt) > TWO_DAYS;
-  }
-
-  function getDaysOverdue(takenAt) {
-    if (!takenAt) return 0;
-    const now = Date.now();
-    const msPerDay = 24 * 60 * 60 * 1000;
-    return Math.floor((now - takenAt) / msPerDay);
   }
 
   function updateSelectedBundlesDisplay() {
@@ -611,7 +594,6 @@
     // Add event listeners
     peopleManageList.querySelectorAll('.btn-edit').forEach(btn => {
       btn.addEventListener('click', () => {
-        if (!isAdmin()) return;
         const id = parseInt(btn.dataset.id);
         const person = people.find(p => p.id === id);
         const newName = prompt('Введи новое ФИО:', btn.dataset.name);
@@ -623,7 +605,6 @@
     });
     peopleManageList.querySelectorAll('.btn-delete').forEach(btn => {
       btn.addEventListener('click', () => {
-        if (!isAdmin()) return;
         const id = parseInt(btn.dataset.id);
         if (confirm('Удалить сотрудника ' + btn.closest('.person-manage-item').querySelector('.person-manage-name').textContent + '?')) {
           deletePerson(id);
@@ -633,11 +614,6 @@
     // Admin checkbox handler
     peopleManageList.querySelectorAll('.admin-checkbox input').forEach(checkbox => {
       checkbox.addEventListener('change', () => {
-        if (!isAdmin()) {
-          checkbox.checked = !checkbox.checked;
-          alert('Только админ может изменять статус админа');
-          return;
-        }
         const id = parseInt(checkbox.dataset.id);
         const person = people.find(p => p.id === id);
         if (person) {
@@ -711,11 +687,7 @@
       if (taken && bundleState && bundleState.personName) {
         textContent += ` (у ${bundleState.personName})`;
       }
-      // Показываем количество использований
-      const usageCount = getBundleUsageCount(b.bundleId);
-      if (usageCount > 0) {
-        textContent += ` [×${usageCount}]`;
-      }
+
       const text = document.createElement('span');
       text.textContent = textContent;
 
@@ -750,7 +722,7 @@
       personDiv.className = 'person-item';
       const chip = document.createElement('span');
       chip.className = 'person-chip' + (selectedPerson === name ? ' active' : '');
-      chip.textContent = name + ' (' + count + ')';
+      chip.textContent = name;
       chip.addEventListener('click', () => {
         selectedPerson = selectedPerson === name ? null : name;
         renderPeople();
@@ -857,9 +829,7 @@
 
       const label = document.createElement('span');
       label.className = 'bundle-label';
-      const usageCount = getBundleUsageCount(b.bundleId);
-      const usageText = usageCount > 0 ? ` [×${usageCount}]` : '';
-      label.textContent = `${b.zoneName} — ТКД ${b.tkdRange}${usageText}`;
+      label.textContent = `${b.zoneName} — ТКД ${b.tkdRange}`;
 
       // Comment input
       const commentInput = document.createElement('input');
@@ -873,14 +843,7 @@
 
       const taken = document.createElement('span');
       taken.className = 'taken-time';
-      const overdue = isOverdue(b.takenAt);
-      if (overdue) {
-        const days = getDaysOverdue(b.takenAt);
-        taken.className = 'taken-time taken-time--overdue';
-        taken.textContent = `⚠️ взято ${formatTime(b.takenAt)} (${days} дн.)`;
-      } else {
-        taken.textContent = `взято ${formatTime(b.takenAt)}`;
-      }
+      taken.textContent = `взято ${formatTime(b.takenAt)}`;
 
       item.appendChild(checkbox);
       item.appendChild(label);
@@ -953,13 +916,7 @@
       item.className = 'search-result-item';
       let statusHtml = '';
       if (cur) {
-        const overdue = isOverdue(cur.takenAt);
-        if (overdue) {
-          const days = getDaysOverdue(cur.takenAt);
-          statusHtml = `<span class="overdue-badge">⚠️ У ${escapeHtml(cur.personName)} (${days} дн.)</span>`;
-        } else {
-          statusHtml = `У ${escapeHtml(cur.personName)}`;
-        }
+        statusHtml = `У ${escapeHtml(cur.personName)}`;
       } else {
         statusHtml = 'Свободна';
       }
@@ -978,44 +935,12 @@
     return div.innerHTML;
   }
 
-  function getBundleUsageCount(bundleId) {
-    if (!history || !history.length) return 0;
-    return history.filter(h => h.bundleId === bundleId && h.action === 'take').length;
-  }
-  
-  function renderOverdueNotification() {
-    const notification = document.getElementById('overdue-notification');
-    const countEl = document.getElementById('overdue-count');
-    const listEl = document.getElementById('overdue-list');
-    if (!notification || !countEl || !listEl) return;
-    
-    const overdueItems = [];
-    for (const [bundleId, data] of Object.entries(state)) {
-      if (data && data.takenAt && isOverdue(data.takenAt)) {
-        const days = getDaysOverdue(data.takenAt);
-        overdueItems.push({ bundleId, personName: data.personName, days });
-      }
-    }
-    
-    if (overdueItems.length === 0) {
-      notification.style.display = 'none';
-      return;
-    }
-    
-    notification.style.display = 'block';
-    countEl.textContent = overdueItems.length;
-    listEl.textContent = overdueItems.map(item => 
-      item.bundleId.split('_').slice(2).join('_') + ' (' + item.personName + ', ' + item.days + ' дн.)'
-    ).join(', ');
-  }
-  
   function render() {
     renderZoneSelect();
     renderBundleSelect();
     updateSelectedBundlesDisplay();
     renderPeople();
     renderViewPanel();
-    renderOverdueNotification();
     updateHistoryPersonFilter();
     // оновлення select для додавання связки
     if (newBundleZone) {
@@ -1166,8 +1091,12 @@
           }
         }
         if (foundBundles.length > 0) {
-          // Sort by smallest range
-          foundBundles.sort((a, b) => a.size - b.size);
+          // Sort by closest start to the key number
+          foundBundles.sort((a, b) => {
+            const aStart = parseInt(a.bundle.split('-')[0], 10);
+            const bStart = parseInt(b.bundle.split('-')[0], 10);
+            return Math.abs(aStart - keyNum) - Math.abs(bStart - keyNum);
+          });
           const bestBundle = foundBundles[0].bundle;
           const bundleId = getBundleId(zone.id, bestBundle);
           selectedBundleIds.add(bundleId);
@@ -1239,7 +1168,7 @@
       btnAddPerson.addEventListener('click', () => {
         const name = newPersonName.value.trim();
         if (name) {
-          addPerson(name);
+          addPerson(name, '');
           newPersonName.value = '';
         }
       });
@@ -1271,6 +1200,14 @@
       if (toggleHistoryBtn) {
         toggleHistoryBtn.classList.remove('active');
       }
+    });
+  }
+
+  // Person select handler
+  if (personName) {
+    personName.addEventListener('change', () => {
+      selectedPerson = personName.value || null;
+      updateAdminMode();
     });
   }
 
