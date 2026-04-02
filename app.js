@@ -23,6 +23,10 @@
   let people = []; // [{ id: 1, name: "Іван Петренко" }]
   let history = []; // [{ id, bundleId, personName, action, timestamp }]
 
+  // Auth state
+  let authToken = localStorage.getItem('authToken') || null;
+  let currentUser = null; // { id, name, role }
+
   // SSE for real-time updates
   let eventSource = null;
 
@@ -49,6 +53,85 @@
 
   // Подключаем SSE при загрузке
   connectSSE();
+
+  // Auth functions
+  async function login(name, password) {
+    try {
+      const res = await fetch(API_BASE + '/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Ошибка входа');
+        return false;
+      }
+      authToken = data.token;
+      currentUser = data.user;
+      localStorage.setItem('authToken', authToken);
+      updateUI();
+      return true;
+    } catch (e) {
+      console.error('Login error:', e);
+      alert('Ошибка входа');
+      return false;
+    }
+  }
+
+  function logout() {
+    authToken = null;
+    currentUser = null;
+    localStorage.removeItem('authToken');
+    updateUI();
+  }
+
+  async function checkAuth() {
+    if (!authToken) {
+      updateUI();
+      return;
+    }
+    try {
+      const res = await fetch(API_BASE + '/api/whoami', {
+        headers: { 'Authorization': 'Bearer ' + authToken },
+      });
+      if (!res.ok) {
+        logout();
+        return;
+      }
+      const data = await res.json();
+      currentUser = data;
+      updateUI();
+    } catch (e) {
+      console.error('Auth check error:', e);
+      logout();
+    }
+  }
+
+  function updateUI() {
+    const btnLogin = document.getElementById('btn-login');
+    const btnLogout = document.getElementById('btn-logout');
+    const userInfo = document.getElementById('user-info');
+    
+    if (currentUser) {
+      btnLogin.style.display = 'none';
+      btnLogout.style.display = 'inline-flex';
+      userInfo.style.display = 'inline';
+      userInfo.textContent = currentUser.name + ' (' + currentUser.role + ')';
+      
+      // Show/hide admin elements
+      if (currentUser.role === 'ADMIN') {
+        document.body.classList.add('admin-mode');
+      } else {
+        document.body.classList.remove('admin-mode');
+      }
+    } else {
+      btnLogin.style.display = 'inline-flex';
+      btnLogout.style.display = 'none';
+      userInfo.style.display = 'none';
+      document.body.classList.remove('admin-mode');
+    }
+  }
 
   function getBundleId(zoneId, tkdRange) {
     return zoneId + '_' + tkdRange;
@@ -810,7 +893,31 @@
     viewKeysInfo.textContent = `Всего: ${personBundles.length} связок. Выбери, какие вернуть:`;
 
     viewBundles.innerHTML = '';
-
+function renderOverdueNotification() {
+    const notification = document.getElementById('overdue-notification');
+    const countEl = document.getElementById('overdue-count');
+    const listEl = document.getElementById('overdue-list');
+    if (!notification || !countEl || !listEl) return;
+    
+    const overdueItems = [];
+    for (const [bundleId, data] of Object.entries(state)) {
+      if (data && data.takenAt && isOverdue(data.takenAt)) {
+        const days = getDaysOverdue(data.takenAt);
+        overdueItems.push({ bundleId, personName: data.personName, days });
+      }
+    }
+    
+    if (overdueItems.length === 0) {
+      notification.style.display = 'none';
+      return;
+    }
+    
+    notification.style.display = 'block';
+    countEl.textContent = overdueItems.length;
+    listEl.textContent = overdueItems.map(item => 
+      item.bundleId.split('_').slice(2).join('_') + ' (' + item.personName + ', ' + item.days + ' дн.)'
+    ).join(', ');
+  }
     personBundles.forEach((b) => {
       const item = document.createElement('div');
       item.className = 'return-bundle-item';
@@ -941,6 +1048,7 @@
     updateSelectedBundlesDisplay();
     renderPeople();
     renderViewPanel();
+    renderOverdueNotification();
     updateHistoryPersonFilter();
     // оновлення select для додавання связки
     if (newBundleZone) {
@@ -1210,6 +1318,63 @@
       updateAdminMode();
     });
   }
+
+  // Login modal handlers
+  const btnLogin = document.getElementById('btn-login');
+  const btnLogout = document.getElementById('btn-logout');
+  const loginModal = document.getElementById('login-modal');
+  const closeLoginModal = document.getElementById('close-login-modal');
+  const btnDoLogin = document.getElementById('btn-do-login');
+  const loginName = document.getElementById('login-name');
+
+  if (btnLogin && loginModal) {
+    btnLogin.addEventListener('click', () => {
+      loginModal.style.display = 'flex';
+    });
+  }
+
+  if (closeLoginModal && loginModal) {
+    closeLoginModal.addEventListener('click', () => {
+      loginModal.style.display = 'none';
+    });
+    loginModal.addEventListener('click', (e) => {
+      if (e.target === loginModal) {
+        loginModal.style.display = 'none';
+      }
+    });
+  }
+
+  const loginPassword = document.getElementById('login-password');
+  
+  if (btnDoLogin && loginName && loginPassword) {
+    btnDoLogin.addEventListener('click', async () => {
+      const name = loginName.value;
+      const password = loginPassword.value;
+      if (!name || !name.trim()) {
+        alert('Введите имя пользователя');
+        return;
+      }
+      if (!password) {
+        alert('Введите пароль');
+        return;
+      }
+      const success = await login(name.trim(), password);
+      if (success) {
+        loginModal.style.display = 'none';
+        loginName.value = '';
+        loginPassword.value = '';
+      }
+    });
+  }
+
+  if (btnLogout) {
+    btnLogout.addEventListener('click', () => {
+      logout();
+    });
+  }
+
+  // Check auth on load
+  checkAuth();
 
   // History person filter handler
   if (historyPersonFilter) {

@@ -1418,3 +1418,62 @@ body {
   font-size: 0.85rem;
   white-space: nowrap;
 }
+.overdue-notification {
+  background: linear-gradient(90deg, #fef3c7 0%, #fde68a 100%);
+  border-bottom: 1px solid #f59e0b;
+  padding: 0.75rem 0;
+  color: #92400e;
+}
+
+.overdue-notification .container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.overdue-icon {
+  font-size: 1.2rem;
+}
+
+.overdue-text {
+  font-weight: 600;
+}
+
+.overdue-count {
+  background: #ef4444;
+  color: white;
+  padding: 0.125rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.overdue-list {
+  font-size: 0.9rem;
+}
+.login-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 350px;
+    padding: 2rem;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+}
+
+.admin-only {
+    display: none; /* Будет переключено в app.js функцией applyRoleUI */
+}
+
+/* Визуальное выделение полей, которые админ может редактировать */
+body.is-admin .admin-only {
+    display: block;
+}

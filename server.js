@@ -1,9 +1,17 @@
 ﻿const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const jwt = require('jsonwebtoken');
 
-const PORT = process.env.PORT || 3000;
+let PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
+
+// JWT secret from environment variable
+const JWT_SECRET = process.env.JWT_SECRET || 'keytracker-jwt-secret-2024';
+
+// Passwords for authentication
+const USER_PASSWORD = process.env.USER_PASSWORD || 'user123';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 
 // PostgreSQL connection
 const { Pool } = require('pg');
@@ -292,6 +300,61 @@ function getZones() {
   return getDefaultZones();
 }
 
+// ----------------- JWT Middleware -----------------
+
+// Extract JWT token from Authorization header
+function extractToken(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+  return authHeader.substring(7);
+}
+
+// Verify JWT token and return decoded payload
+function verifyToken(token) {
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (e) {
+    return null;
+  }
+}
+
+// Middleware to check JWT authentication
+function authenticate(req, res) {
+  const token = extractToken(req);
+  if (!token) {
+    res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ error: 'Authentication required' }));
+    return null;
+  }
+  
+  const decoded = verifyToken(token);
+  if (!decoded) {
+    res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ error: 'Invalid or expired token' }));
+    return null;
+  }
+  
+  return decoded;
+}
+
+// Middleware to check user role
+function checkRole(allowedRoles) {
+  return (req, res) => {
+    const user = authenticate(req, res);
+    if (!user) return null;
+    
+    if (!allowedRoles.includes(user.role)) {
+      res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: 'Access denied. Insufficient permissions.' }));
+      return null;
+    }
+    
+    return user;
+  };
+}
+
 // ----------------- HTTP Server -----------------
 
 const server = http.createServer(async (req, res) => {
@@ -337,6 +400,66 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
+    // Login endpoint - returns JWT token
+    if (req.url === '/api/login' && method === 'POST') {
+      try {
+        const body = await parseBody(req);
+        const { name, password } = body;
+        
+        if (!name || !String(name).trim()) {
+          sendJson(400, { error: 'Name is required' });
+          return;
+        }
+        
+        if (!password) {
+          sendJson(400, { error: 'Password is required' });
+          return;
+        }
+        
+        const trimmedName = String(name).trim();
+        const people = await getPeopleFromDB();
+        const person = people.find(p => p.name === trimmedName);
+        
+        if (!person) {
+          sendJson(401, { error: 'User not found' });
+          return;
+        }
+        
+        // Check password based on user role
+        const isAdmin = person.isAdmin;
+        const expectedPassword = isAdmin ? ADMIN_PASSWORD : USER_PASSWORD;
+        
+        if (password !== expectedPassword) {
+          sendJson(401, { error: 'Invalid password' });
+          return;
+        }
+        
+        // Create JWT token with user role
+        const token = jwt.sign(
+          { 
+            id: person.id, 
+            name: person.name, 
+            role: isAdmin ? 'ADMIN' : 'USER' 
+          },
+          JWT_SECRET,
+          { expiresIn: '24h' }
+        );
+        
+        sendJson(200, { 
+          token, 
+          user: { 
+            id: person.id, 
+            name: person.name, 
+            role: isAdmin ? 'ADMIN' : 'USER' 
+          } 
+        });
+      } catch (e) {
+        console.error('Login error:', e);
+        sendJson(500, { error: 'Login failed' });
+      }
+      return;
+    }
+
     // State endpoint
     if (req.url === '/api/state' && method === 'GET') {
       try {
@@ -348,8 +471,12 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // Take keys
+    // Take keys (requires ADMIN role)
     if (req.url === '/api/take' && method === 'POST') {
+      // Check if user has ADMIN role
+      const user = checkRole(['ADMIN'])(req, res);
+      if (!user) return;
+      
       try {
         const body = await parseBody(req);
         const { bundleId, personName } = body;
@@ -375,8 +502,12 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // Return keys
+    // Return keys (requires ADMIN role)
     if (req.url === '/api/return' && method === 'POST') {
+      // Check if user has ADMIN role
+      const user = checkRole(['ADMIN'])(req, res);
+      if (!user) return;
+      
       try {
         const body = await parseBody(req);
         const { bundleId } = body;
@@ -399,8 +530,12 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // Comment
+    // Comment (requires ADMIN role)
     if (req.url === '/api/comment' && method === 'POST') {
+      // Check if user has ADMIN role
+      const user = checkRole(['ADMIN'])(req, res);
+      if (!user) return;
+      
       try {
         const body = await parseBody(req);
         const { bundleId, comment } = body;
@@ -434,6 +569,10 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.url === '/api/people/add' && method === 'POST') {
+      // Check if user has ADMIN role
+      const user = checkRole(['ADMIN'])(req, res);
+      if (!user) return;
+      
       try {
         const body = await parseBody(req);
         const trimmedName = String(body.name || '').trim();
@@ -455,6 +594,10 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.url === '/api/people/update' && method === 'POST') {
+      // Check if user has ADMIN role
+      const user = checkRole(['ADMIN'])(req, res);
+      if (!user) return;
+      
       try {
         const body = await parseBody(req);
         const { id, name, phone, isAdmin } = body;
@@ -468,6 +611,10 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.url === '/api/people/delete' && method === 'POST') {
+      // Check if user has ADMIN role
+      const user = checkRole(['ADMIN'])(req, res);
+      if (!user) return;
+      
       try {
         const body = await parseBody(req);
         const { id } = body;
@@ -480,37 +627,40 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // Set admin endpoint (requires secret key)
-    if (req.url === '/api/set-admin' && method === 'POST') {
+    // Set role endpoint (requires ADMIN role)
+    if (req.url === '/api/set-role' && method === 'POST') {
+      // Check if user has ADMIN role
+      const user = checkRole(['ADMIN'])(req, res);
+      if (!user) return;
+      
       try {
         const body = await parseBody(req);
-        const { name, secret } = body;
-        
-        // Secret key from environment variable or default
-        const ADMIN_SECRET = process.env.ADMIN_SECRET || 'keytracker-admin-2024';
-        
-        if (secret !== ADMIN_SECRET) {
-          sendJson(403, { error: 'Invalid secret key' });
-          return;
-        }
+        const { name, role } = body;
         
         if (!name) {
           sendJson(400, { error: 'Name is required' });
           return;
         }
         
+        if (!role || !['ADMIN', 'USER'].includes(role)) {
+          sendJson(400, { error: 'Role must be ADMIN or USER' });
+          return;
+        }
+        
+        const isAdmin = role === 'ADMIN';
+        
         // Find person and update is_admin
         if (pool) {
           await pool.query(
-            'UPDATE people SET is_admin = true WHERE name = $1',
-            [name]
+            'UPDATE people SET is_admin = $1 WHERE name = $2',
+            [isAdmin, name]
           );
         } else {
           const person = memoryData.people.find(p => p.name === name);
-          if (person) person.isAdmin = true;
+          if (person) person.isAdmin = isAdmin;
         }
         
-        console.log('Admin set for:', name);
+        console.log('Role set for:', name, 'to', role);
         sendJson(200, { ok: true, message: name + ' теперь админ' });
       } catch (e) {
         sendJson(500, { error: 'Failed to set admin' });
@@ -526,6 +676,19 @@ const server = http.createServer(async (req, res) => {
       } catch (e) {
         sendJson(500, { error: 'Failed to get history' });
       }
+      return;
+    }
+
+    // Whoami endpoint - returns current user info from JWT token
+    if (req.url === '/api/whoami' && method === 'GET') {
+      const user = authenticate(req, res);
+      if (!user) return;
+      
+      sendJson(200, { 
+        id: user.id, 
+        name: user.name, 
+        role: user.role 
+      });
       return;
     }
 
@@ -565,13 +728,29 @@ process.on('unhandledRejection', (reason) => {
   console.error('Unhandled Rejection:', reason);
 });
 
-// Start server
-console.log('Starting server on port:', PORT);
-initDatabase().then(() => {
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log('Server running on port ' + PORT);
+// Start server with port fallback
+function startServer(port) {
+  console.log('Starting server on port:', port);
+  initDatabase().then(() => {
+    server.listen(port, '0.0.0.0', () => {
+      console.log('Server running on port ' + port);
+    });
+  }).catch(err => {
+    console.error('Failed to start:', err);
+    process.exit(1);
   });
-}).catch(err => {
-  console.error('Failed to start:', err);
-  process.exit(1);
+}
+
+// Handle port in use error
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    const newPort = PORT + 1;
+    console.log('Port ' + PORT + ' is already in use, trying port ' + newPort);
+    startServer(newPort);
+  } else {
+    console.error('Server error:', err);
+    process.exit(1);
+  }
 });
+
+startServer(PORT);

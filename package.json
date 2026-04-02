@@ -17,6 +17,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "jsonwebtoken": "^9.0.3",
     "pg": "^8.20.0",
     "sql.js": "^1.10.0"
   }
