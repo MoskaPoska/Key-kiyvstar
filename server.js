@@ -2,16 +2,13 @@
 const fs = require('fs');
 const path = require('path');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 
 let PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
 
 // JWT secret from environment variable
 const JWT_SECRET = process.env.JWT_SECRET || 'keytracker-jwt-secret-2024';
-
-// Passwords for authentication
-const USER_PASSWORD = process.env.USER_PASSWORD || 'user123';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 
 // PostgreSQL connection
 const { Pool } = require('pg');
@@ -32,14 +29,14 @@ if (DATABASE_URL) {
   });
 } else {
   console.log('No DATABASE_URL found, using in-memory storage');
-  // Fallback to in-memory storage
+  // Fallback to in-memory storage - users will be created in initDatabase
   var memoryData = {
     zones: [],
     state: {},
     people: [],
     history: []
   };
-  var memoryId = { people: 1, history: 1 };
+  var memoryId = { people: 3, history: 1 };
 }
 
 const MIME = {
@@ -54,9 +51,71 @@ const MIME = {
 
 // ----------------- Database Functions -----------------
 
+// Load data from file
+function loadDataFromFile() {
+  const dataFile = path.join(ROOT, 'server-data.json');
+  if (fs.existsSync(dataFile)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
+      if (data.state && data.people && data.history && data.id) {
+        memoryData.state = data.state || {};
+        memoryData.people = data.people || [];
+        memoryData.history = data.history || [];
+        memoryId.people = data.id.people || 3;
+        memoryId.history = data.id.history || 1;
+        console.log('Data loaded from file');
+        return true;
+      }
+    } catch (e) {
+      console.error('Error loading data from file:', e);
+    }
+  }
+  return false;
+}
+
+// Save data to file
+function saveDataToFile() {
+  const dataFile = path.join(ROOT, 'server-data.json');
+  const data = {
+    state: memoryData.state,
+    people: memoryData.people,
+    history: memoryData.history,
+    id: memoryId
+  };
+  try {
+    fs.writeFileSync(dataFile, JSON.stringify(data, null, 2));
+    console.log('Data saved to file');
+  } catch (e) {
+    console.error('Error saving data to file:', e);
+  }
+}
+
+// Schedule periodic saves
+function scheduleDataSave() {
+  setInterval(() => {
+    saveDataToFile();
+  }, 5000); // Save every 5 seconds
+}
+
 async function initDatabase() {
   if (!pool) {
     console.log('Using in-memory storage');
+    // Try to load existing data first
+    const loaded = loadDataFromFile();
+    
+    if (!loaded) {
+      // Create default users with hashed passwords for in-memory storage
+      const adminHash = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'admin123', 10);
+      const userHash = await bcrypt.hash(process.env.USER_PASSWORD || 'user123', 10);
+      memoryData.people = [
+        { id: 1, name: 'Администратор', phone: '+380501234567', isAdmin: true, passwordHash: adminHash },
+        { id: 2, name: 'Пользователь', phone: '', isAdmin: false, passwordHash: userHash }
+      ];
+      console.log('Default in-memory users created with hashed passwords');
+    }
+    
+    // Start periodic saving
+    scheduleDataSave();
     return;
   }
   
@@ -77,7 +136,9 @@ async function initDatabase() {
         id SERIAL PRIMARY KEY,
         name TEXT NOT NULL UNIQUE,
         phone TEXT DEFAULT '',
-        is_admin BOOLEAN DEFAULT FALSE
+        is_admin BOOLEAN DEFAULT FALSE,
+        password_hash TEXT NOT NULL DEFAULT '',
+        plain_password TEXT DEFAULT ''
       )
     `);
     
@@ -180,7 +241,8 @@ async function getPeopleFromDB() {
       id: row.id,
       name: row.name,
       phone: row.phone,
-      isAdmin: row.is_admin || false
+      isAdmin: row.is_admin || false,
+      passwordHash: row.password_hash
     }));
   } catch (e) {
     console.error('Error getting people:', e);
@@ -188,24 +250,89 @@ async function getPeopleFromDB() {
   }
 }
 
-async function addPersonToDB(name, phone) {
+// Function to get person by name with password hash (for authentication)
+async function getPersonByName(name) {
   if (!pool) {
-    const person = { id: memoryId.people++, name, phone, isAdmin: false };
+    return memoryData.people.find(p => p.name === name) || null;
+  }
+  
+  try {
+    const result = await pool.query('SELECT * FROM people WHERE name = $1', [name]);
+    if (result.rows.length === 0) return null;
+    return {
+      id: result.rows[0].id,
+      name: result.rows[0].name,
+      phone: result.rows[0].phone,
+      isAdmin: result.rows[0].is_admin || false,
+      passwordHash: result.rows[0].password_hash
+    };
+  } catch (e) {
+    console.error('Error getting person:', e);
+    return null;
+  }
+}
+
+async function addPersonToDB(name, phone, isAdmin = false, password = null) {
+  // Generate a random password if not provided
+  let plainPassword = password;
+  if (!plainPassword) {
+    plainPassword = generateRandomPassword();
+  }
+  
+  console.log('Generated password for', name, ':', plainPassword);
+  
+  // Hash the password
+  const passwordHash = await bcrypt.hash(plainPassword, 10);
+  
+  if (!pool) {
+    const person = { 
+      id: memoryId.people++, 
+      name, 
+      phone, 
+      isAdmin,
+      passwordHash,
+      plainPassword // Store plain password for display
+    };
     memoryData.people.push(person);
-    return person;
+    console.log('Person added to memory:', name, 'with password:', plainPassword);
+    return { ...person, plainPassword }; // Return plain password for display
   }
   
   try {
     const result = await pool.query(
-      'INSERT INTO people (name, phone) VALUES ($1, $2) RETURNING *',
-      [name, phone || '']
+      'INSERT INTO people (name, phone, is_admin, password_hash, plain_password) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [name, phone || '', isAdmin, passwordHash, plainPassword]
     );
-    console.log('Person added to PostgreSQL:', name);
-    return result.rows[0];
+    console.log('Person added to PostgreSQL:', name, isAdmin ? '(admin)' : '', 'with password:', plainPassword);
+    return { ...result.rows[0], plainPassword }; // Return plain password for display
   } catch (e) {
     console.error('Error adding person:', e);
     throw e;
   }
+}
+
+// Helper function to generate a random password
+function generateRandomPassword(length = 8) {
+  const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+  const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const numbers = '0123456789';
+  const symbols = '!@#$%^&*';
+  const all = lowercase + uppercase + numbers + symbols;
+  
+  let password = '';
+  // Ensure at least one character from each category
+  password += lowercase[Math.floor(Math.random() * lowercase.length)];
+  password += uppercase[Math.floor(Math.random() * uppercase.length)];
+  password += numbers[Math.floor(Math.random() * numbers.length)];
+  password += symbols[Math.floor(Math.random() * symbols.length)];
+  
+  // Fill the rest
+  for (let i = password.length; i < length; i++) {
+    password += all[Math.floor(Math.random() * all.length)];
+  }
+  
+  // Shuffle the password
+  return password.split('').sort(() => Math.random() - 0.5).join('');
 }
 
 async function updatePersonInDB(id, name, phone, isAdmin) {
@@ -417,19 +544,19 @@ const server = http.createServer(async (req, res) => {
         }
         
         const trimmedName = String(name).trim();
-        const people = await getPeopleFromDB();
-        const person = people.find(p => p.name === trimmedName);
+        
+        // Get person by name (includes password hash)
+        const person = await getPersonByName(trimmedName);
         
         if (!person) {
           sendJson(401, { error: 'User not found' });
           return;
         }
         
-        // Check password based on user role
-        const isAdmin = person.isAdmin;
-        const expectedPassword = isAdmin ? ADMIN_PASSWORD : USER_PASSWORD;
+        // Check password using bcrypt
+        const passwordMatch = await bcrypt.compare(password, person.passwordHash);
         
-        if (password !== expectedPassword) {
+        if (!passwordMatch) {
           sendJson(401, { error: 'Invalid password' });
           return;
         }
@@ -439,7 +566,7 @@ const server = http.createServer(async (req, res) => {
           { 
             id: person.id, 
             name: person.name, 
-            role: isAdmin ? 'ADMIN' : 'USER' 
+            role: person.isAdmin ? 'ADMIN' : 'USER' 
           },
           JWT_SECRET,
           { expiresIn: '24h' }
@@ -450,7 +577,7 @@ const server = http.createServer(async (req, res) => {
           user: { 
             id: person.id, 
             name: person.name, 
-            role: isAdmin ? 'ADMIN' : 'USER' 
+            role: person.isAdmin ? 'ADMIN' : 'USER' 
           } 
         });
       } catch (e) {
@@ -471,12 +598,8 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // Take keys (requires ADMIN role)
+    // Take keys (anyone can take)
     if (req.url === '/api/take' && method === 'POST') {
-      // Check if user has ADMIN role
-      const user = checkRole(['ADMIN'])(req, res);
-      if (!user) return;
-      
       try {
         const body = await parseBody(req);
         const { bundleId, personName } = body;
@@ -502,12 +625,8 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // Return keys (requires ADMIN role)
+    // Return keys (anyone can return)
     if (req.url === '/api/return' && method === 'POST') {
-      // Check if user has ADMIN role
-      const user = checkRole(['ADMIN'])(req, res);
-      if (!user) return;
-      
       try {
         const body = await parseBody(req);
         const { bundleId } = body;
@@ -530,9 +649,8 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // Comment (requires ADMIN role)
+    // Comment (ADMIN only - can write comments)
     if (req.url === '/api/comment' && method === 'POST') {
-      // Check if user has ADMIN role
       const user = checkRole(['ADMIN'])(req, res);
       if (!user) return;
       
@@ -569,23 +687,32 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.url === '/api/people/add' && method === 'POST') {
+      console.log('Add person request received');
       // Check if user has ADMIN role
       const user = checkRole(['ADMIN'])(req, res);
       if (!user) return;
       
       try {
         const body = await parseBody(req);
+        console.log('Request body:', body);
         const trimmedName = String(body.name || '').trim();
         const trimmedPhone = String(body.phone || '').trim();
+        const isAdmin = body.isAdmin === true;
+        const password = body.password || null;
+        
+        console.log('Parsed data:', { trimmedName, trimmedPhone, isAdmin, password });
         
         if (!trimmedName) {
           sendJson(400, { error: 'Name is required' });
           return;
         }
 
-        await addPersonToDB(trimmedName, trimmedPhone);
+        const result = await addPersonToDB(trimmedName, trimmedPhone, isAdmin, password);
         console.log('Person added:', trimmedName);
-        sendJson(200, { ok: true });
+        sendJson(200, { 
+          ok: true, 
+          message: `Сотрудник создан. Роль: ${isAdmin ? 'ADMIN' : 'USER'}`
+        });
       } catch (e) {
         console.error('Add person error:', e);
         sendJson(500, { error: 'Failed to add person' });
@@ -601,6 +728,9 @@ const server = http.createServer(async (req, res) => {
       try {
         const body = await parseBody(req);
         const { id, name, phone, isAdmin } = body;
+        
+        // Non-admin cannot make themselves admin
+        const currentUserIsAdmin = user.role === 'ADMIN';
         
         await updatePersonInDB(id, name, phone, isAdmin);
         sendJson(200, { ok: true });
@@ -623,6 +753,100 @@ const server = http.createServer(async (req, res) => {
         sendJson(200, { ok: true });
       } catch (e) {
         sendJson(500, { error: 'Failed to delete person' });
+      }
+      return;
+    }
+
+    // Get person password endpoint (requires ADMIN role)
+    if (req.url.startsWith('/api/people/') && req.url.endsWith('/password') && method === 'GET') {
+      // Check if user has ADMIN role
+      const user = checkRole(['ADMIN'])(req, res);
+      if (!user) return;
+      
+      try {
+        // Extract person ID from URL
+        const urlParts = req.url.split('/');
+        const personId = parseInt(urlParts[urlParts.length - 2], 10);
+        
+        if (!personId || isNaN(personId)) {
+          sendJson(400, { error: 'Invalid person ID' });
+          return;
+        }
+        
+        // Get person from database
+        let person = null;
+        if (pool) {
+          const result = await pool.query('SELECT * FROM people WHERE id = $1', [personId]);
+          if (result.rows.length > 0) {
+            person = {
+              id: result.rows[0].id,
+              name: result.rows[0].name,
+              phone: result.rows[0].phone,
+              isAdmin: result.rows[0].is_admin || false,
+              passwordHash: result.rows[0].password_hash,
+              plainPassword: result.rows[0].plain_password
+            };
+          }
+        } else {
+          person = memoryData.people.find(p => p.id === personId);
+        }
+        
+        if (!person) {
+          sendJson(404, { error: 'Person not found' });
+          return;
+        }
+        
+        // Return the actual password
+        sendJson(200, { 
+          password: person.plainPassword || '••••••••'
+        });
+      } catch (e) {
+        console.error('Get password error:', e);
+        sendJson(500, { error: 'Failed to get password' });
+      }
+      return;
+    }
+
+    // Change password endpoint (requires ADMIN role)
+    if (req.url === '/api/change-password' && method === 'POST') {
+      console.log('Change password request received');
+      // Check if user has ADMIN role
+      const user = checkRole(['ADMIN'])(req, res);
+      if (!user) return;
+      
+      try {
+        const body = await parseBody(req);
+        const { id, newPassword } = body;
+        
+        if (!id) {
+          sendJson(400, { error: 'User ID is required' });
+          return;
+        }
+        
+        if (!newPassword || newPassword.length < 4) {
+          sendJson(400, { error: 'Password must be at least 4 characters' });
+          return;
+        }
+        
+        // Hash the new password
+        const passwordHash = await bcrypt.hash(newPassword, 10);
+        
+        // Update password in database
+        if (pool) {
+          await pool.query(
+            'UPDATE people SET password_hash = $1 WHERE id = $2',
+            [passwordHash, id]
+          );
+        } else {
+          const person = memoryData.people.find(p => p.id === id);
+          if (person) person.passwordHash = passwordHash;
+        }
+        
+        console.log('Password changed for user ID:', id);
+        sendJson(200, { ok: true, message: 'Пароль изменен' });
+      } catch (e) {
+        console.error('Change password error:', e);
+        sendJson(500, { error: 'Failed to change password' });
       }
       return;
     }
@@ -676,6 +900,40 @@ const server = http.createServer(async (req, res) => {
       } catch (e) {
         sendJson(500, { error: 'Failed to get history' });
       }
+      return;
+    }
+
+    // SSE Events endpoint for real-time updates
+    if (req.url === '/api/events' && method === 'GET') {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+      });
+
+      // Send initial connection message
+      res.write(': connected\n\n');
+
+      // Send current state immediately
+      try {
+        const state = await getStateFromDB();
+        const zones = getZones();
+        res.write(`data: ${JSON.stringify({ zones, state })}\n\n`);
+      } catch (e) {
+        console.error('Error sending SSE initial state:', e);
+      }
+
+      // Keep connection alive with periodic pings
+      const pingInterval = setInterval(() => {
+        res.write(': ping\n\n');
+      }, 30000);
+
+      // Clean up when client disconnects
+      req.on('close', () => {
+        clearInterval(pingInterval);
+      });
+
       return;
     }
 

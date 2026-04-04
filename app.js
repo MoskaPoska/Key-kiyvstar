@@ -1,60 +1,34 @@
 (function () {
+  'use strict';
   const API_BASE = '';
 
-  // Функция проверки - является ли выбранный сотрудник админом
-  function isAdmin() {
-    if (!selectedPerson) return false;
-    const person = people.find(p => p.name === selectedPerson);
-    return person && person.isAdmin === true;
-  }
+  const btnLogin = document.getElementById('btn-login'); // Кнопка "Войти" в форме
+  const btnLogout = document.getElementById('btn-logout'); // Кнопка "Выйти" в шапке (если добавишь)
+  const loginScreen = document.getElementById('login-screen'); // Оверлей входа
+  const loginNameInput = document.getElementById('login-name');
+  const loginPasswordInput = document.getElementById('login-password');
+  
+  const keySearch = document.getElementById('key-search');
+  const btnSearch = document.getElementById('btn-search');
+  const searchResults = document.getElementById('search-results');
+  const zoneSelect = document.getElementById('zone-select');
+  const bundleList = document.getElementById('bundle-list');
+  const personNameSelect = document.getElementById('person-name');
+  const btnTake = document.getElementById('btn-take');
+  const selectedBundlesList = document.getElementById('selected-bundles');
+  const historySection = document.getElementById('history-section');
+  const toggleHistoryBtn = document.getElementById('toggle-history-btn');
 
-  // Обновить класс body для отображения админ-элементов
-  function updateAdminMode() {
-    if (isAdmin()) {
-      document.body.classList.add('admin-mode');
-    } else {
-      document.body.classList.remove('admin-mode');
-    }
-  }
-
-  // Дані приходять з сервера: список зон і поточний стан
+  // Current logged in user
+  let currentUser = null;
+  // Не зберігаємо токен в localStorage - потрібно входити при кожному оновленні
+  let authToken = null;
   let zones = [];
-  let state = {}; // { "zone_4_101-1010": { personName: "Іван Петренко", takenAt: 1741234567890 } }
-  let people = []; // [{ id: 1, name: "Іван Петренко" }]
-  let history = []; // [{ id, bundleId, personName, action, timestamp }]
+  let state = {};
+  let people = [];
+  let history = [];
+  const selectedBundleIds = new Set();
 
-  // Auth state
-  let authToken = localStorage.getItem('authToken') || null;
-  let currentUser = null; // { id, name, role }
-
-  // SSE for real-time updates
-  let eventSource = null;
-
-  function connectSSE() {
-    if (eventSource) {
-      eventSource.close();
-    }
-    eventSource = new EventSource(API_BASE + '/api/events');
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        zones = Array.isArray(data.zones) ? data.zones : [];
-        state = data.state || {};
-        render();
-      } catch (e) {
-        console.error('Ошибка парсинга SSE данных', e);
-      }
-    };
-    eventSource.onerror = () => {
-      console.log('SSE ошибка, переподключение через 5 сек...');
-      setTimeout(connectSSE, 5000);
-    };
-  }
-
-  // Подключаем SSE при загрузке
-  connectSSE();
-
-  // Auth functions
   async function login(name, password) {
     try {
       const res = await fetch(API_BASE + '/api/login', {
@@ -69,12 +43,12 @@
       }
       authToken = data.token;
       currentUser = data.user;
-      localStorage.setItem('authToken', authToken);
+      // Не зберігаємо токен в localStorage - потрібно входити при кожному оновленні
       updateUI();
       return true;
     } catch (e) {
       console.error('Login error:', e);
-      alert('Ошибка входа');
+      alert('Ошибка соединения с сервером');
       return false;
     }
   }
@@ -84,8 +58,10 @@
     currentUser = null;
     localStorage.removeItem('authToken');
     updateUI();
+    location.reload(); // Перезагрузка для очистки состояния
   }
 
+  // checkAuth теперь вызывается только при необходимости
   async function checkAuth() {
     if (!authToken) {
       updateUI();
@@ -95,43 +71,89 @@
       const res = await fetch(API_BASE + '/api/whoami', {
         headers: { 'Authorization': 'Bearer ' + authToken },
       });
-      if (!res.ok) {
-        logout();
-        return;
-      }
-      const data = await res.json();
-      currentUser = data;
+      if (!res.ok) throw new Error();
+      currentUser = await res.json();
       updateUI();
     } catch (e) {
-      console.error('Auth check error:', e);
       logout();
     }
   }
-
-  function updateUI() {
-    const btnLogin = document.getElementById('btn-login');
-    const btnLogout = document.getElementById('btn-logout');
-    const userInfo = document.getElementById('user-info');
+function updateUI() {
+    if (!loginScreen) return;
     
+    // Если пользователь вошел - скрываем экран входа
     if (currentUser) {
-      btnLogin.style.display = 'none';
-      btnLogout.style.display = 'inline-flex';
-      userInfo.style.display = 'inline';
-      userInfo.textContent = currentUser.name + ' (' + currentUser.role + ')';
-      
-      // Show/hide admin elements
-      if (currentUser.role === 'ADMIN') {
-        document.body.classList.add('admin-mode');
-      } else {
-        document.body.classList.remove('admin-mode');
+      if (loginScreen.style.display !== 'none') {
+        loginScreen.style.display = 'none';
       }
     } else {
-      btnLogin.style.display = 'inline-flex';
-      btnLogout.style.display = 'none';
-      userInfo.style.display = 'none';
+      // Если не вошел — показываем экран логина
+      if (loginScreen.style.display !== 'flex') {
+        loginScreen.style.display = 'flex';
+      }
+    }
+  }
+  if (btnLogin) {
+    btnLogin.addEventListener('click', async () => {
+      const name = loginNameInput.value.trim();
+      const password = loginPasswordInput.value;
+
+      if (!name || !password) {
+        alert('Заполните все поля');
+        return;
+      }
+
+      const success = await login(name, password);
+      if (success) {
+        console.log('Авторизация успешна');
+        load(); // Загружаем данные после входа
+        renderPeopleSelect(); // Обновляем список сотрудников с учетом текущего пользователя
+      }
+    });
+  }
+
+  // Позволяем входить по нажатию Enter в поле пароля
+  if (loginPasswordInput) {
+    loginPasswordInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') btnLogin.click();
+    });
+  }
+  // Функция проверки - является ли выбранный сотрудник админом
+  function isAdmin() {
+    return currentUser && currentUser.role === 'ADMIN';
+  }
+
+  // Обновить класс body для отображения админ-элементов
+  function updateAdminMode() {
+    if (isAdmin()) {
+      document.body.classList.add('admin-mode');
+    } else {
       document.body.classList.remove('admin-mode');
     }
   }
+
+  // Дані приходять з сервера: список зон і поточний стан
+  
+  // Auth state
+  
+  // SSE for real-time updates
+  let eventSource = null;
+
+  function connectSSE() {
+    const eventSource = new EventSource(API_BASE + '/api/events');
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      zones = data.zones || [];
+      state = data.state || {};
+      render();
+    };
+  }
+
+  // Подключаем SSE при загрузке
+  connectSSE();
+
+  // Auth functions
+
 
   function getBundleId(zoneId, tkdRange) {
     return zoneId + '_' + tkdRange;
@@ -152,20 +174,56 @@
   }
 
   async function load() {
+    // Проверяем авторизацию перед загрузкой данных
+    if (!authToken) {
+      updateUI();
+      return;
+    }
+    
+    // Проверяем валидность токена
+    try {
+      const res = await fetch(API_BASE + '/api/whoami', {
+        headers: { 'Authorization': 'Bearer ' + authToken },
+      });
+      if (!res.ok) {
+        logout();
+        return;
+      }
+      currentUser = await res.json();
+    } catch (e) {
+      logout();
+      return;
+    }
+
+    // Скрываем экран входа если пользователь авторизован
+    updateUI();
+
     try {
       const res = await fetch(API_BASE + '/api/state');
-      if (!res.ok) throw new Error('Failed to load state');
       const data = await res.json();
-      zones = Array.isArray(data.zones) ? data.zones : [];
+      zones = data.zones || [];
       state = data.state || {};
+      
+      // Загрузка людей и истории
+      const pRes = await fetch(API_BASE + '/api/people');
+      people = await pRes.json();
+      
+      // Загружаем историю
+      try {
+        const hRes = await fetch(API_BASE + '/api/history');
+        if (hRes.ok) {
+          history = await hRes.json();
+        }
+      } catch (he) {
+        console.error('History load error', he);
+        history = [];
+      }
+      
+      render();
+      renderPeopleSelect(); // Обновляем список сотрудников после загрузки данных
     } catch (e) {
-      console.error('Ошибка загрузки данных с сервера', e);
-      zones = [];
-      state = {};
+      console.error('Data load error', e);
     }
-    await loadPeople();
-    await loadHistory();
-    render();
   }
 
   async function loadHistory() {
@@ -300,60 +358,34 @@
     }
   }
 
-  async function addZone(name) {
-    const n = (name || '').trim();
-    if (!n) return;
-    try {
-      const res = await fetch(API_BASE + '/api/add-zone', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: n }),
-      });
-      if (!res.ok) throw new Error('Failed add zone');
-      await load();
-    } catch (e) {
-      console.error('Ошибка добавления зоны', e);
-      alert('Не удалось добавить зону на сервере.');
-    }
-  }
-
-  async function addBundle(zoneId, tkdRange) {
-    const range = (tkdRange || '').trim();
-    if (!range) return;
-    try {
-      const res = await fetch(API_BASE + '/api/add-bundle', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ zoneId, range }),
-      });
-      if (!res.ok) throw new Error('Failed add bundle');
-      await load();
-    } catch (e) {
-      console.error('Ошибка добавления связки', e);
-      alert('Не удалось добавить связку на сервере.');
-    }
-  }
-
-  async function addPerson(name, phone) {
+  async function addPerson(name, phone, isAdminValue = false, password = null) {
     const n = (name || '').trim();
     const p = (phone || '').trim();
+    const pw = password || '';
     if (!n) return;
     try {
+      console.log('Adding person:', n, 'with token:', authToken ? authToken.substring(0, 20) + '...' : 'none');
       const res = await fetch(API_BASE + '/api/people/add', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: n, phone: p }),
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + authToken
+        },
+        body: JSON.stringify({ name: n, phone: p, isAdmin: isAdminValue, password: pw }),
       });
       const data = await res.json();
+      console.log('Response status:', res.status, 'Response data:', data);
       if (!res.ok) {
         alert(data.error || 'Не удалось добавить сотрудника');
         return;
       }
+      // Show success message
+      alert(`Сотрудник создан!\n\nЛогин: ${n}\n\nРоль: ${isAdminValue ? 'ADMIN' : 'USER'}\n\nПароль: ${pw}`);
       await loadPeople();
       renderPeopleManageList();
     } catch (e) {
       console.error('Ошибка добавления сотрудника', e);
-      alert('Не удалось добавить сотрудника.');
+      alert('Не удалось добавить сотрудника: ' + e.message);
     }
   }
 
@@ -364,7 +396,10 @@
     try {
       const res = await fetch(API_BASE + '/api/people/update', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + authToken
+        },
         body: JSON.stringify({ id, name: n, phone: p, isAdmin: isAdminValue || false }),
       });
       const data = await res.json();
@@ -385,7 +420,10 @@
     try {
       const res = await fetch(API_BASE + '/api/people/delete', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + authToken
+        },
         body: JSON.stringify({ id }),
       });
       const data = await res.json();
@@ -401,6 +439,48 @@
     }
   }
 
+  async function changePassword(id, newPassword) {
+    if (!newPassword || newPassword.length < 4) {
+      alert('Пароль должен быть не менее 4 символов');
+      return;
+    }
+    try {
+      const res = await fetch(API_BASE + '/api/change-password', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + authToken
+        },
+        body: JSON.stringify({ id, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Не удалось изменить пароль');
+        return;
+      }
+      alert('Пароль успешно изменен');
+    } catch (e) {
+      console.error('Ошибка изменения пароля', e);
+      alert('Не удалось изменить пароль.');
+    }
+  }
+
+  async function getPersonPassword(id) {
+    try {
+      const res = await fetch(API_BASE + '/api/people/' + id + '/password', {
+        headers: { 
+          'Authorization': 'Bearer ' + authToken
+        },
+      });
+      if (!res.ok) throw new Error('Failed to get password');
+      const data = await res.json();
+      return data.password;
+    } catch (e) {
+      console.error('Ошибка получения пароля', e);
+      return null;
+    }
+  }
+
   function getAllBundles() {
     const list = [];
     getZonesSorted().forEach((z) => {
@@ -412,16 +492,16 @@
   }
 
   // DOM
-  const keySearch = document.getElementById('key-search');
-  const btnSearch = document.getElementById('btn-search');
-  const searchResults = document.getElementById('search-results');
+  //const keySearch = document.getElementById('key-search');
+  //const btnSearch = document.getElementById('btn-search');
+  //const searchResults = document.getElementById('search-results');
   const bundleSearch = document.getElementById('bundle-search');
-  const zoneSelect = document.getElementById('zone-select');
-  const bundleList = document.getElementById('bundle-list');
+  //const zoneSelect = document.getElementById('zone-select');
+  //const bundleList = document.getElementById('bundle-list');
   const quickBundleSelect = document.getElementById('quick-bundle-select');
   const btnQuickSelect = document.getElementById('btn-quick-select');
   const personName = document.getElementById('person-name');
-  const btnTake = document.getElementById('btn-take');
+  //const btnTake = document.getElementById('btn-take');
   const peopleList = document.getElementById('people-list');
   const peopleSection = document.getElementById('people-section');
   const viewPanel = document.getElementById('view-panel');
@@ -430,22 +510,20 @@
   const viewKeysInfo = document.getElementById('view-keys-info');
   const viewBundles = document.getElementById('view-bundles');
   const viewButtons = document.getElementById('view-buttons');
-  const newZoneName = document.getElementById('new-zone-name');
-  const btnAddZone = document.getElementById('btn-add-zone');
-  const newBundleZone = document.getElementById('new-bundle-zone');
-  const newBundleRange = document.getElementById('new-bundle-range');
-  const btnAddBundle = document.getElementById('btn-add-bundle');
   
   // People modal elements
   const peopleModal = document.getElementById('people-modal');
   const btnManagePeople = document.getElementById('btn-manage-people');
   const closePeopleModal = document.getElementById('close-people-modal');
   const newPersonName = document.getElementById('new-person-name');
+  const newPersonPhone = document.getElementById('new-person-phone');
+  const newPersonPassword = document.getElementById('new-person-password');
+  const newPersonRole = document.getElementById('new-person-role');
   const btnAddPerson = document.getElementById('btn-add-person');
   const peopleManageList = document.getElementById('people-manage-list');
   const historyList = document.getElementById('history-list');
-  const historySection = document.getElementById('history-section');
-  const toggleHistoryBtn = document.getElementById('toggle-history-btn');
+  //const historySection = document.getElementById('history-section');
+  //const toggleHistoryBtn = document.getElementById('toggle-history-btn');
   const toggleHistoryHideBtn = document.getElementById('toggle-history');
   const historyPersonFilter = document.getElementById('history-person-filter');
 
@@ -456,8 +534,8 @@
   let bundleSearchQuery = '';
 
   // Текущий «корзина» выбранных связок (чтобы можно было выбрать из разных зон подряд)
-  const selectedBundleIds = new Set();
-  const selectedBundlesList = document.getElementById('selected-bundles');
+  //const selectedBundleIds = new Set();
+  //const selectedBundlesList = document.getElementById('selected-bundles');
 
   // Выбор связок для возврата в панели просмотра пользователя
   let selectedReturnBundleIds = new Set();
@@ -592,6 +670,9 @@
       filteredHistory = filteredHistory.filter(h => h.personName === historyFilterPerson);
     }
     
+    // Сортируем историю по времени: новые события вверху
+    filteredHistory.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
     filteredHistory.forEach(h => {
       const item = document.createElement('div');
       item.className = 'history-item';
@@ -625,16 +706,28 @@
   function renderPeopleSelect() {
     if (!personName) return;
     const currentValue = personName.value;
+    
+    // Определяем, каких сотрудников показывать
+    let peopleToShow = people;
+    if (!isAdmin()) {
+      // USER видит только себя
+      if (currentUser) {
+        peopleToShow = people.filter(p => p.name === currentUser.name);
+      } else {
+        peopleToShow = [];
+      }
+    }
+    
     // Add disabled placeholder option
     const placeholderOpt = document.createElement('option');
     placeholderOpt.value = '';
     placeholderOpt.disabled = true;
-    placeholderOpt.selected = true;
+    placeholderOpt.selected = !currentValue;
     placeholderOpt.textContent = 'Выбери сотрудника';
     personName.innerHTML = '';
     personName.appendChild(placeholderOpt);
     
-    people.forEach((p) => {
+    peopleToShow.forEach((p) => {
       const opt = document.createElement('option');
       opt.value = p.name;
       opt.textContent = p.name;
@@ -642,8 +735,9 @@
       opt.dataset.phone = p.phone || '';
       personName.appendChild(opt);
     });
+    
     // Restore selection if still valid
-    if (currentValue && people.some(p => p.name === currentValue)) {
+    if (currentValue && peopleToShow.some(p => p.name === currentValue)) {
       placeholderOpt.selected = false;
       personName.value = currentValue;
     }
@@ -661,33 +755,206 @@
       const item = document.createElement('div');
       item.className = 'person-manage-item';
       item.innerHTML = `
-        <span class="person-manage-name">${escapeHtml(p.name)}</span>
+        <div class="person-manage-header">
+          <span class="person-manage-name">${escapeHtml(p.name)}</span>
+          <span class="person-manage-role">${p.isAdmin ? '👑 ADMIN' : '👤 USER'}</span>
+        </div>
+        <div class="person-manage-details">
+          <span class="person-manage-phone">${p.phone ? escapeHtml(p.phone) : '—'}</span>
+        </div>
         ${isCurrentUserAdmin ? `
         <label class="admin-checkbox">
           <input type="checkbox" data-id="${p.id}" ${p.isAdmin ? 'checked' : ''}> Админ
         </label>
         ` : ''}
+        ${isCurrentUserAdmin ? `
         <div class="person-manage-actions">
           <button type="button" class="btn-edit" data-id="${p.id}" data-name="${escapeHtml(p.name)}" data-admin="${p.isAdmin || false}" title="Редактировать">✏️</button>
+          <button type="button" class="btn-change-password" data-id="${p.id}" title="Сменить пароль">🔑</button>
           <button type="button" class="btn-delete" data-id="${p.id}" title="Удалить">🗑️</button>
         </div>
+        ` : ''}
       `;
       peopleManageList.appendChild(item);
     });
     // Add event listeners
     peopleManageList.querySelectorAll('.btn-edit').forEach(btn => {
       btn.addEventListener('click', () => {
+        if (!isAdmin()) return;
         const id = parseInt(btn.dataset.id);
         const person = people.find(p => p.id === id);
-        const newName = prompt('Введи новое ФИО:', btn.dataset.name);
-        if (newName && newName.trim()) {
-          const makeAdmin = confirm('Сделать этого сотрудника админом?');
-          updatePerson(id, newName.trim(), person ? person.phone : '', makeAdmin);
-        }
+        if (!person) return;
+        
+        // Show edit person modal
+        openEditPersonModal(person);
       });
     });
+    // Add password change button handler - open modal
+    peopleManageList.querySelectorAll('.btn-change-password').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (!isAdmin()) return;
+        const id = parseInt(btn.dataset.id);
+        const person = people.find(p => p.id === id);
+        if (!person) return;
+        
+        // Show password change modal
+        openPasswordModal(person);
+      });
+    });
+    
+    // Password modal elements
+    const passwordModal = document.getElementById('password-modal');
+    const closePasswordModal = document.getElementById('close-password-modal');
+    const passwordModalCurrent = document.getElementById('password-modal-current');
+    const passwordModalNew = document.getElementById('password-modal-new');
+    const passwordModalCancel = document.getElementById('password-modal-cancel');
+    const passwordModalSave = document.getElementById('password-modal-save');
+    
+    // Edit person modal elements
+    const editPersonModal = document.getElementById('edit-person-modal');
+    const closeEditPersonModal = document.getElementById('close-edit-person-modal');
+    const editPersonModalName = document.getElementById('edit-person-modal-name');
+    const editPersonModalPhone = document.getElementById('edit-person-modal-phone');
+    const editPersonModalRole = document.getElementById('edit-person-modal-role');
+    const editPersonModalCancel = document.getElementById('edit-person-modal-cancel');
+    const editPersonModalSave = document.getElementById('edit-person-modal-save');
+    
+    let currentEditPersonId = null;
+    
+    function openPasswordModal(person) {
+      currentEditPersonId = person.id;
+      passwordModalCurrent.textContent = '••••••••';
+      passwordModalNew.value = '';
+      passwordModal.style.display = 'flex';
+    }
+    
+    // Add event listener for show password button
+    const btnShowPassword = document.getElementById('btn-show-password');
+    if (btnShowPassword) {
+      btnShowPassword.addEventListener('click', async () => {
+        if (passwordModalCurrent.textContent === '••••••••') {
+          // Show real password
+          if (currentEditPersonId !== null) {
+            const realPassword = await getPersonPassword(currentEditPersonId);
+            if (realPassword) {
+              passwordModalCurrent.textContent = realPassword;
+              btnShowPassword.textContent = '🙈';
+              btnShowPassword.title = 'Скрыть пароль';
+            } else {
+              alert('Не удалось получить пароль сотрудника');
+            }
+          }
+        } else {
+          // Hide password
+          passwordModalCurrent.textContent = '••••••••';
+          btnShowPassword.textContent = '👁️';
+          btnShowPassword.title = 'Показать пароль';
+        }
+      });
+    }
+    
+    function closePasswordModalFn() {
+      passwordModal.style.display = 'none';
+      currentEditPersonId = null;
+    }
+    
+    if (closePasswordModal) {
+      closePasswordModal.addEventListener('click', closePasswordModalFn);
+    }
+    
+    if (passwordModalCancel) {
+      passwordModalCancel.addEventListener('click', closePasswordModalFn);
+    }
+    
+    if (passwordModal) {
+      passwordModal.addEventListener('click', (e) => {
+        if (e.target === passwordModal) {
+          closePasswordModalFn();
+        }
+      });
+    }
+    
+    if (passwordModalSave) {
+      passwordModalSave.addEventListener('click', async () => {
+        const newPassword = passwordModalNew.value;
+        
+        if (!newPassword || newPassword.length < 4) {
+          alert('Пароль должен быть не менее 4 символов');
+          return;
+        }
+        
+        if (currentEditPersonId !== null) {
+          await changePassword(currentEditPersonId, newPassword);
+          closePasswordModalFn();
+        }
+      });
+    }
+    
+    // Enter key in password field
+    if (passwordModalNew) {
+      passwordModalNew.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          passwordModalSave.click();
+        }
+      });
+    }
+    
+    function openEditPersonModal(person) {
+      currentEditPersonId = person.id;
+      editPersonModalName.value = person.name;
+      editPersonModalPhone.value = person.phone || '';
+      editPersonModal.style.display = 'flex';
+    }
+    
+    function closeEditPersonModalFn() {
+      editPersonModal.style.display = 'none';
+      currentEditPersonId = null;
+    }
+    
+    if (closeEditPersonModal) {
+      closeEditPersonModal.addEventListener('click', closeEditPersonModalFn);
+    }
+    
+    if (editPersonModalCancel) {
+      editPersonModalCancel.addEventListener('click', closeEditPersonModalFn);
+    }
+    
+    if (editPersonModal) {
+      editPersonModal.addEventListener('click', (e) => {
+        if (e.target === editPersonModal) {
+          closeEditPersonModalFn();
+        }
+      });
+    }
+    
+    if (editPersonModalSave) {
+      editPersonModalSave.addEventListener('click', async () => {
+        const name = editPersonModalName.value.trim();
+        const phone = editPersonModalPhone.value.trim();
+        
+        if (!name) {
+          alert('Введите ФИО сотрудника');
+          return;
+        }
+        
+        if (currentEditPersonId !== null) {
+          await updatePerson(currentEditPersonId, name, phone, null);
+          closeEditPersonModalFn();
+        }
+      });
+    }
+    
+    // Enter key in phone field
+    if (editPersonModalPhone) {
+      editPersonModalPhone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          editPersonModalSave.click();
+        }
+      });
+    }
     peopleManageList.querySelectorAll('.btn-delete').forEach(btn => {
       btn.addEventListener('click', () => {
+        if (!isAdmin()) return;
         const id = parseInt(btn.dataset.id);
         if (confirm('Удалить сотрудника ' + btn.closest('.person-manage-item').querySelector('.person-manage-name').textContent + '?')) {
           deletePerson(id);
@@ -697,6 +964,7 @@
     // Admin checkbox handler
     peopleManageList.querySelectorAll('.admin-checkbox input').forEach(checkbox => {
       checkbox.addEventListener('change', () => {
+        if (!isAdmin()) return;
         const id = parseInt(checkbox.dataset.id);
         const person = people.find(p => p.id === id);
         if (person) {
@@ -805,7 +1073,7 @@
       personDiv.className = 'person-item';
       const chip = document.createElement('span');
       chip.className = 'person-chip' + (selectedPerson === name ? ' active' : '');
-      chip.textContent = name;
+      chip.textContent = `${name} (${count})`;
       chip.addEventListener('click', () => {
         selectedPerson = selectedPerson === name ? null : name;
         renderPeople();
@@ -845,15 +1113,18 @@
       viewPersonPhone.style.display = 'none';
     }
 
-    // Add click handler for phone to edit/add
-    viewPersonPhone.onclick = (e) => {
-      e.preventDefault();
-      if (!person) return;
-      const newPhone = prompt('Введите номер телефона:', person.phone || '');
-      if (newPhone !== null) {
-        updatePerson(person.id, person.name, newPhone.trim());
-      }
-    };
+    // Add click handler for phone to edit/add (ADMIN only)
+    if (isAdmin()) {
+      viewPersonPhone.onclick = (e) => {
+        e.preventDefault();
+        if (!person) return;
+        const newPhone = prompt('Введите номер телефона:', person.phone || '');
+        if (newPhone !== null) {
+          updatePerson(person.id, person.name, newPhone.trim());
+        }
+      };
+    }
+    // Note: Non-admin users can still see and click the phone link to make a call
 
     // Get person's bundles
     const personBundles = Object.entries(state)
@@ -893,12 +1164,108 @@
     viewKeysInfo.textContent = `Всего: ${personBundles.length} связок. Выбери, какие вернуть:`;
 
     viewBundles.innerHTML = '';
-function renderOverdueNotification() {
+    
+    // Отображаем ключи сотрудника
+    personBundles.forEach((bundle) => {
+      const item = document.createElement('div');
+      item.className = 'view-bundle-item';
+      
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = bundle.bundleId;
+      checkbox.checked = selectedReturnBundleIds.has(bundle.bundleId);
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) {
+          selectedReturnBundleIds.add(bundle.bundleId);
+        } else {
+          selectedReturnBundleIds.delete(bundle.bundleId);
+        }
+      });
+      
+      const label = document.createElement('label');
+      label.className = 'view-bundle-label';
+      label.textContent = `${bundle.zoneName} — ТКД ${bundle.tkdRange}`;
+      
+      const timeInfo = document.createElement('span');
+      timeInfo.className = 'view-bundle-time';
+      timeInfo.textContent = `Взято: ${formatTime(bundle.takenAt)}`;
+      
+      item.appendChild(checkbox);
+      item.appendChild(label);
+      item.appendChild(timeInfo);
+      
+      viewBundles.appendChild(item);
+    });
+    
+    // Кнопки действий
+    viewButtons.innerHTML = '';
+    
+    const returnBtn = document.createElement('button');
+    returnBtn.type = 'button';
+    returnBtn.className = 'btn btn-return';
+    returnBtn.textContent = 'Вернуть выбранные';
+    returnBtn.addEventListener('click', async () => {
+      const bundleIds = Array.from(selectedReturnBundleIds);
+      if (!bundleIds.length) {
+        alert('Выберите связки для возврата');
+        return;
+      }
+      await returnKeys(bundleIds);
+      selectedPerson = null;
+      renderPeople();
+      renderViewPanel();
+    });
+    
+    const returnAllBtn = document.createElement('button');
+    returnAllBtn.type = 'button';
+    returnAllBtn.className = 'btn btn-return';
+    returnAllBtn.textContent = 'Вернуть все';
+    returnAllBtn.addEventListener('click', async () => {
+      const bundleIds = personBundles.map(b => b.bundleId);
+      if (!bundleIds.length) {
+        alert('У этого человека нет ключей');
+        return;
+      }
+      if (confirm(`Вы уверены, что хотите вернуть все ${bundleIds.length} связок?`)) {
+        await returnKeys(bundleIds);
+        selectedPerson = null;
+        renderPeople();
+        renderViewPanel();
+      }
+    });
+    
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'btn btn-danger';
+    closeBtn.textContent = 'Закрыть';
+    closeBtn.addEventListener('click', () => {
+      selectedPerson = null;
+      renderPeople();
+      renderViewPanel();
+    });
+    
+    viewButtons.appendChild(returnBtn);
+    viewButtons.appendChild(returnAllBtn);
+    viewButtons.appendChild(closeBtn);
+  }
+
+  function isOverdue(takenAt) {
+    const now = Date.now();
+    const diffDays = Math.floor((now - takenAt) / (1000 * 60 * 60 * 24));
+    return diffDays >= 2;
+  }
+
+  function getDaysOverdue(takenAt) {
+    const now = Date.now();
+    return Math.floor((now - takenAt) / (1000 * 60 * 60 * 24));
+  }
+
+  function renderOverdueNotification() {
     const notification = document.getElementById('overdue-notification');
     const countEl = document.getElementById('overdue-count');
     const listEl = document.getElementById('overdue-list');
     if (!notification || !countEl || !listEl) return;
-    
+
     const overdueItems = [];
     for (const [bundleId, data] of Object.entries(state)) {
       if (data && data.takenAt && isOverdue(data.takenAt)) {
@@ -906,110 +1273,21 @@ function renderOverdueNotification() {
         overdueItems.push({ bundleId, personName: data.personName, days });
       }
     }
-    
+
     if (overdueItems.length === 0) {
       notification.style.display = 'none';
       return;
     }
-    
+
     notification.style.display = 'block';
     countEl.textContent = overdueItems.length;
-    listEl.textContent = overdueItems.map(item => 
+    listEl.textContent = overdueItems.map(item =>
       item.bundleId.split('_').slice(2).join('_') + ' (' + item.personName + ', ' + item.days + ' дн.)'
     ).join(', ');
   }
-    personBundles.forEach((b) => {
-      const item = document.createElement('div');
-      item.className = 'return-bundle-item';
-
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.checked = selectedReturnBundleIds.has(b.bundleId);
-      checkbox.addEventListener('change', () => {
-        if (checkbox.checked) {
-          selectedReturnBundleIds.add(b.bundleId);
-        } else {
-          selectedReturnBundleIds.delete(b.bundleId);
-        }
-        updateReturnButtons();
-      });
-
-      const label = document.createElement('span');
-      label.className = 'bundle-label';
-      label.textContent = `${b.zoneName} — ТКД ${b.tkdRange}`;
-
-      // Comment input
-      const commentInput = document.createElement('input');
-      commentInput.type = 'text';
-      commentInput.className = 'comment-input';
-      commentInput.placeholder = 'Комментарий...';
-      commentInput.value = state[b.bundleId]?.comment || '';
-      commentInput.addEventListener('change', () => {
-        saveComment(b.bundleId, commentInput.value);
-      });
-
-      const taken = document.createElement('span');
-      taken.className = 'taken-time';
-      taken.textContent = `взято ${formatTime(b.takenAt)}`;
-
-      item.appendChild(checkbox);
-      item.appendChild(label);
-      item.appendChild(commentInput);
-      item.appendChild(taken);
-      viewBundles.appendChild(item);
-    });
-
-    viewButtons.innerHTML = '';
-
-    const returnSelectedBtn = document.createElement('button');
-    returnSelectedBtn.type = 'button';
-    returnSelectedBtn.className = 'btn btn-return';
-    returnSelectedBtn.textContent = 'Вернуть выбранные';
-    returnSelectedBtn.addEventListener('click', () => {
-      const selectedIds = Array.from(selectedReturnBundleIds);
-      if (!selectedIds.length) {
-        alert('Выбери хотя бы одну связку.');
-        return;
-      }
-      returnKeys(selectedIds);
-      selectedPerson = null;
-      renderPeople();
-      renderViewPanel();
-    });
-
-    const returnAllBtn = document.createElement('button');
-    returnAllBtn.type = 'button';
-    returnAllBtn.className = 'btn btn-return';
-    returnAllBtn.textContent = 'Вернуть все';
-    returnAllBtn.addEventListener('click', () => {
-      returnKeys(personBundles.map((b) => b.bundleId));
-      selectedPerson = null;
-      renderPeople();
-      renderViewPanel();
-    });
-
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.className = 'btn btn-secondary';
-    closeBtn.textContent = 'Закрыть';
-    closeBtn.addEventListener('click', () => {
-      selectedPerson = null;
-      renderPeople();
-      renderViewPanel();
-    });
-
-    function updateReturnButtons() {
-      returnSelectedBtn.disabled = selectedReturnBundleIds.size === 0;
-    }
-
-    viewButtons.appendChild(returnSelectedBtn);
-    viewButtons.appendChild(returnAllBtn);
-    viewButtons.appendChild(closeBtn);
-
-    updateReturnButtons();
-  }
 
   function renderSearchResults() {
+    if (!searchResults) return;
     const list = filterBundlesBySearch();
     searchResults.innerHTML = '';
     if (!list.length) {
@@ -1047,19 +1325,10 @@ function renderOverdueNotification() {
     renderBundleSelect();
     updateSelectedBundlesDisplay();
     renderPeople();
-    renderViewPanel();
+    // renderViewPanel() вызывается только при клике на имя сотрудника
     renderOverdueNotification();
     updateHistoryPersonFilter();
-    // оновлення select для додавання связки
-    if (newBundleZone) {
-      newBundleZone.innerHTML = '';
-      getZonesSorted().forEach((z) => {
-        const opt = document.createElement('option');
-        opt.value = z.id;
-        opt.textContent = z.name;
-        newBundleZone.appendChild(opt);
-      });
-    }
+    renderHistory();
   }
 
   function updateHistoryPersonFilter() {
@@ -1080,24 +1349,26 @@ function renderOverdueNotification() {
     }
   }
 
-  keySearch.addEventListener('input', () => {
-    searchQuery = keySearch.value;
-    if (searchQuery.trim()) {
-      renderSearchResults();
-    } else {
-      searchResults.style.display = 'none';
-    }
-  });
+  if (keySearch) {
+    keySearch.addEventListener('input', () => {
+      searchQuery = keySearch.value;
+      if (searchQuery.trim()) {
+        renderSearchResults();
+      } else {
+        if (searchResults) searchResults.style.display = 'none';
+      }
+    });
 
-  keySearch.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      keySearch.value = '';
-      searchQuery = '';
-      searchResults.style.display = 'none';
-    }
-  });
+    keySearch.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        keySearch.value = '';
+        searchQuery = '';
+        if (searchResults) searchResults.style.display = 'none';
+      }
+    });
+  }
 
-  if (btnSearch) {
+  if (btnSearch && keySearch && searchResults) {
     btnSearch.addEventListener('click', () => {
       searchQuery = keySearch.value;
       if (searchQuery.trim()) {
@@ -1223,41 +1494,6 @@ function renderOverdueNotification() {
     });
   }
 
-  if (btnAddZone && newZoneName) {
-    btnAddZone.addEventListener('click', () => {
-      const name = newZoneName.value.trim();
-      if (!name) {
-        alert('Введи название зоны.');
-        return;
-      }
-      addZone(name);
-      newZoneName.value = '';
-    });
-    newZoneName.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') btnAddZone.click();
-    });
-  }
-
-  if (btnAddBundle && newBundleZone && newBundleRange) {
-    btnAddBundle.addEventListener('click', () => {
-      const zoneId = newBundleZone.value;
-      const range = newBundleRange.value.trim();
-      if (!zoneId) {
-        alert('Выбери зону.');
-        return;
-      }
-      if (!range) {
-        alert('Введи диапазон ТКД (напр. 101-106).');
-        return;
-      }
-      addBundle(zoneId, range);
-      newBundleRange.value = '';
-    });
-    newBundleRange.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') btnAddBundle.click();
-    });
-  }
-
   // People modal handlers
   if (btnManagePeople && peopleModal) {
     btnManagePeople.addEventListener('click', () => {
@@ -1273,11 +1509,52 @@ function renderOverdueNotification() {
       }
     });
     if (btnAddPerson && newPersonName) {
-      btnAddPerson.addEventListener('click', () => {
+      btnAddPerson.addEventListener('click', async () => {
+        console.log('Add person button clicked');
+        console.log('Elements found:', {
+          btnAddPerson: !!btnAddPerson,
+          newPersonName: !!newPersonName,
+          newPersonPhone: !!newPersonPhone,
+          newPersonPassword: !!newPersonPassword,
+          newPersonRole: !!newPersonRole
+        });
+        
+        if (!isAdmin()) {
+          alert('Только администратор может добавлять сотрудников');
+          return;
+        }
         const name = newPersonName.value.trim();
-        if (name) {
-          addPerson(name, '');
+        // Phone is optional - get value if field exists
+        const phone = newPersonPhone ? newPersonPhone.value.trim() : '';
+        // Password is required
+        const password = newPersonPassword ? newPersonPassword.value.trim() : '';
+        // Role selection (ADMIN or USER)
+        const role = newPersonRole ? newPersonRole.value : 'USER';
+        const isAdminValue = role === 'ADMIN';
+        
+        console.log('Form data:', { name, phone, password, isAdminValue });
+        
+        if (!name) {
+          alert('Введите ФИО сотрудника');
+          return;
+        }
+        
+        if (!password || password.length < 4) {
+          alert('Введите пароль (минимум 4 символа)');
+          return;
+        }
+        
+        try {
+          console.log('Attempting to add person:', { name, phone, isAdminValue, password });
+          await addPerson(name, phone, isAdminValue, password);
+          // Clear form fields
           newPersonName.value = '';
+          if (newPersonPhone) newPersonPhone.value = '';
+          if (newPersonPassword) newPersonPassword.value = '';
+          if (newPersonRole) newPersonRole.value = 'USER';
+        } catch (error) {
+          console.error('Error adding person:', error);
+          alert('Ошибка при добавлении сотрудника: ' + error.message);
         }
       });
       newPersonName.addEventListener('keydown', (e) => {
@@ -1320,8 +1597,6 @@ function renderOverdueNotification() {
   }
 
   // Login modal handlers
-  const btnLogin = document.getElementById('btn-login');
-  const btnLogout = document.getElementById('btn-logout');
   const loginModal = document.getElementById('login-modal');
   const closeLoginModal = document.getElementById('close-login-modal');
   const btnDoLogin = document.getElementById('btn-do-login');
@@ -1372,9 +1647,6 @@ function renderOverdueNotification() {
       logout();
     });
   }
-
-  // Check auth on load
-  checkAuth();
 
   // History person filter handler
   if (historyPersonFilter) {
