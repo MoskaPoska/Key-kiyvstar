@@ -142,6 +142,31 @@ async function initDatabase() {
         plain_password TEXT DEFAULT ''
       )
     `);
+    console.log('People table created');
+    
+    // Check if role column exists, if not - add it
+    const roleColumnCheck = await pool.query(`
+      SELECT column_name FROM information_schema.columns 
+      WHERE table_name = 'people' AND column_name = 'role'
+    `);
+    
+    if (roleColumnCheck.rows.length === 0) {
+      console.log('Adding role column to people table...');
+      await pool.query('ALTER TABLE people ADD COLUMN role VARCHAR(20) DEFAULT \'USER\'');
+      console.log('Role column added');
+    }
+    
+    // Migrate existing is_admin values to role column
+    await pool.query(`
+      UPDATE people SET role = 'ADMIN' WHERE is_admin = true AND role IS NULL
+    `);
+    await pool.query(`
+      UPDATE people SET role = 'USER' WHERE is_admin = false AND role IS NULL
+    `);
+    await pool.query(`
+      UPDATE people SET role = 'USER' WHERE role IS NULL
+    `);
+    console.log('Role column migration completed');
     
     await pool.query(`
       CREATE TABLE IF NOT EXISTS history (
