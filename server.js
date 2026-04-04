@@ -137,6 +137,7 @@ async function initDatabase() {
         name TEXT NOT NULL UNIQUE,
         phone TEXT DEFAULT '',
         is_admin BOOLEAN DEFAULT FALSE,
+        role VARCHAR(20) DEFAULT 'USER',
         password_hash TEXT NOT NULL DEFAULT '',
         plain_password TEXT DEFAULT ''
       )
