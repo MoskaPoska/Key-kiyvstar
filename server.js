@@ -587,6 +587,20 @@ const server = http.createServer(async (req, res) => {
         const person = await getPersonByName(trimmedName);
         
         if (!person) {
+          // Debug: Check if user exists with this password
+          if (pool) {
+            try {
+              const debugResult = await pool.query('SELECT name, plain_password FROM people WHERE plain_password = $1', [password]);
+              if (debugResult.rows.length > 0) {
+                console.log('Found user with matching plain password:', debugResult.rows);
+                sendJson(401, { error: 'User not found. Found users with this password: ' + debugResult.rows.map(r => r.name).join(', ') });
+                return;
+              }
+            } catch (debugError) {
+              console.error('Debug query failed:', debugError);
+            }
+          }
+          
           sendJson(401, { error: 'User not found' });
           return;
         }
