@@ -8,7 +8,9 @@
     "dev": "node server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "setup": "node setup-users.js",
-    "setup:prod": "node setup-railway-users.js"
+    "setup:prod": "node setup-railway-users.js",
+    "create-admin": "node scripts/create-admin-user.js",
+    "add-role": "node scripts/add-role-column.js"
   },
   "engines": {
     "node": ">=18.0.0"
