@@ -291,7 +291,8 @@ async function getPersonByName(name) {
       name: result.rows[0].name,
       phone: result.rows[0].phone,
       isAdmin: result.rows[0].is_admin || false,
-      passwordHash: result.rows[0].password_hash
+      passwordHash: result.rows[0].password_hash,
+      plainPassword: result.rows[0].plain_password
     };
   } catch (e) {
     console.error('Error getting person:', e);
