@@ -26,6 +26,7 @@ if (DATABASE_URL) {
   console.log('Using PostgreSQL database');
   pool = new Pool({
     connectionString: DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
   });
 } else {
   console.log('No DATABASE_URL found, using in-memory storage');
