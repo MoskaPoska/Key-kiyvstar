@@ -595,15 +595,21 @@ const server = http.createServer(async (req, res) => {
         
         // Check password using bcrypt
         let passwordMatch = false;
+        console.log('Password check for', person.name, ':');
+        console.log('  Input password:', password);
+        console.log('  Stored passwordHash length:', person.passwordHash ? person.passwordHash.length : 0);
+        console.log('  Stored plainPassword:', person.plainPassword);
         
         // First try bcrypt comparison
         if (person.passwordHash && person.passwordHash.length > 0) {
           passwordMatch = await bcrypt.compare(password, person.passwordHash);
+          console.log('  Bcrypt comparison result:', passwordMatch);
         }
         
         // If bcrypt comparison fails and we have plain_password, try direct comparison
         if (!passwordMatch && person.plainPassword) {
           passwordMatch = (password === person.plainPassword);
+          console.log('  Plain password comparison result:', passwordMatch);
         }
         
         if (!passwordMatch) {
