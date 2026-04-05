@@ -884,6 +884,298 @@ body {
   }
 }
 
+/* Mobile-first responsive design */
+@media (max-width: 480px) {
+  /* Header adjustments */
+  .header {
+    padding: 0.75rem 0.5rem;
+  }
+  
+  .logo {
+    font-size: 1.1rem;
+  }
+  
+  .tagline {
+    font-size: 0.7rem;
+  }
+  
+  /* Container padding */
+  .container {
+    padding: 0.5rem;
+  }
+  
+  /* Card adjustments */
+  .card {
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+  }
+  
+  /* Action grid becomes single column */
+  .action-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .action-panel--left,
+  .action-panel--right {
+    min-width: 100%;
+  }
+  
+  /* Search adjustments */
+  .search-row {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .search-input {
+    width: 100%;
+  }
+  
+  /* Form fields full width */
+  .inline-row {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .field input,
+  .field select {
+    width: 100%;
+  }
+  
+  /* Bundle list adjustments */
+  .bundle-list {
+    max-height: 200px;
+    font-size: 0.85rem;
+  }
+  
+  .bundle-item {
+    padding: 0.4rem;
+    gap: 0.5rem;
+  }
+  
+  .bundle-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+  }
+  
+  /* Selected bundles adjustments */
+  .selected-bundles {
+    padding: 0.5rem;
+  }
+  
+  .selected-bundles__item {
+    font-size: 0.75rem;
+    padding: 0.3rem 0.5rem;
+  }
+  
+  /* Buttons adjustments */
+  .buttons {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .btn {
+    flex: 1;
+    min-width: 120px;
+    padding: 0.6rem 1rem;
+    font-size: 0.9rem;
+  }
+  
+  /* People section adjustments */
+  .people-list {
+    gap: 0.4rem;
+  }
+  
+  .person-chip {
+    font-size: 0.8rem;
+    padding: 0.35rem 0.6rem;
+  }
+  
+  /* View panel adjustments */
+  .view-panel {
+    margin-top: 1rem;
+  }
+  
+  .view-panel .card-body {
+    padding: 1rem;
+  }
+  
+  .view-keys-info {
+    font-size: 1rem;
+  }
+  
+  .view-bundles {
+    gap: 0.5rem;
+  }
+  
+  .view-bundle-item {
+    padding: 0.75rem;
+    gap: 0.5rem;
+  }
+  
+  .view-bundle-label {
+    font-size: 0.9rem;
+  }
+  
+  .view-bundle-time {
+    font-size: 0.8rem;
+  }
+  
+  /* Return panel adjustments */
+  .return-panel {
+    padding: 1rem;
+  }
+  
+  .return-bundle-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.6rem;
+  }
+  
+  .return-bundle-item .bundle-label {
+    font-size: 0.85rem;
+  }
+  
+  .return-bundle-item .comment-input {
+    width: 100%;
+    margin-left: 0;
+  }
+  
+  .return-bundle-item .taken-time {
+    margin-left: 0;
+  }
+  
+  .return-buttons {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  /* History section adjustments */
+  .history-list {
+    max-height: 300px;
+    gap: 0.4rem;
+  }
+  
+  .history-item {
+    padding: 0.6rem;
+    font-size: 0.85rem;
+    gap: 0.5rem;
+  }
+  
+  .history-person {
+    min-width: 100px;
+    font-size: 0.8rem;
+  }
+  
+  .history-bundle {
+    font-size: 0.8rem;
+  }
+  
+  .history-time {
+    font-size: 0.75rem;
+  }
+  
+  /* Modal adjustments */
+  .modal {
+    width: 95%;
+    max-height: 85vh;
+  }
+  
+  .modal-header {
+    padding: 0.75rem 1rem;
+  }
+  
+  .modal-body {
+    padding: 1rem;
+  }
+  
+  .add-person-form {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+  
+  .add-person-form .btn-add {
+    width: 100%;
+    justify-self: center;
+  }
+  
+  /* Table adjustments */
+  .keys-table th,
+  .keys-table td {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+  }
+  
+  .keys-table .key-id {
+    font-size: 0.8rem;
+  }
+  
+  /* Section headers */
+  .section-header {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+  
+  /* Person select row */
+  .person-select-row {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .person-select-row .person-select {
+    width: 100%;
+  }
+  
+  /* Login overlay adjustments */
+  .login-card {
+    max-width: 320px;
+    padding: 1.5rem;
+  }
+  
+  /* Overdue notification adjustments */
+  .overdue-notification .container {
+    gap: 0.25rem;
+  }
+  
+  .overdue-text {
+    font-size: 0.9rem;
+  }
+  
+  .overdue-count {
+    font-size: 0.8rem;
+    padding: 0.1rem 0.4rem;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 481px) and (max-width: 768px) {
+  .container {
+    padding: 0.75rem;
+  }
+  
+  .action-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .bundle-list {
+    max-height: 250px;
+  }
+  
+  .view-bundles {
+    gap: 0.75rem;
+  }
+  
+  .history-list {
+    max-height: 350px;
+  }
+  
+  .modal {
+    max-width: 420px;
+  }
+}
+
 /* Table */
 .table-wrap {
   overflow-x: auto;
