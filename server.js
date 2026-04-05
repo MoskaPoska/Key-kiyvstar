@@ -606,7 +606,17 @@ const server = http.createServer(async (req, res) => {
         }
         
         // Check password using bcrypt
-        const passwordMatch = await bcrypt.compare(password, person.passwordHash);
+        let passwordMatch = false;
+        
+        // First try bcrypt comparison
+        if (person.passwordHash && person.passwordHash.length > 0) {
+          passwordMatch = await bcrypt.compare(password, person.passwordHash);
+        }
+        
+        // If bcrypt comparison fails and we have plain_password, try direct comparison
+        if (!passwordMatch && person.plainPassword) {
+          passwordMatch = (password === person.plainPassword);
+        }
         
         if (!passwordMatch) {
           sendJson(401, { error: 'Invalid password' });
