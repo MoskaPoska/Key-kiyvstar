@@ -144,18 +144,6 @@ async function initDatabase() {
     `);
     console.log('People table created');
     
-    // Check if is_admin column exists, if not - add it
-    const isAdminColumnCheck = await pool.query(`
-      SELECT column_name FROM information_schema.columns 
-      WHERE table_name = 'people' AND column_name = 'is_admin'
-    `);
-    
-    if (isAdminColumnCheck.rows.length === 0) {
-      console.log('Adding is_admin column to people table...');
-      await pool.query('ALTER TABLE people ADD COLUMN is_admin BOOLEAN DEFAULT FALSE');
-      console.log('is_admin column added');
-    }
-    
     // Check if role column exists, if not - add it
     const roleColumnCheck = await pool.query(`
       SELECT column_name FROM information_schema.columns 
