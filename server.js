@@ -1043,6 +1043,49 @@ process.on('unhandledRejection', (reason) => {
   console.error('Unhandled Rejection:', reason);
 });
 
+// Graceful shutdown for Railway
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  if (pool) {
+    pool.end().then(() => {
+      console.log('Database connections closed');
+      server.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+      });
+    }).catch(err => {
+      console.error('Error during shutdown:', err);
+      process.exit(1);
+    });
+  } else {
+    server.close(() => {
+      console.log('Server closed');
+      process.exit(0);
+    });
+  }
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  if (pool) {
+    pool.end().then(() => {
+      console.log('Database connections closed');
+      server.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+      });
+    }).catch(err => {
+      console.error('Error during shutdown:', err);
+      process.exit(1);
+    });
+  } else {
+    server.close(() => {
+      console.log('Server closed');
+      process.exit(0);
+    });
+  }
+});
+
 // Start server with port fallback
 function startServer(port) {
   console.log('Starting server on port:', port);
