@@ -1,39 +1,60 @@
-# Система учета ключей для Киевстар
+# Key Tracker System
 
-Веб-приложение для управления ключами и доступом сотрудников к помещениям.
+Система учёта ключей для Киевстар. Реализована на Node.js с использованием PostgreSQL.
 
 ## Особенности
 
-- ✅ Учет ключей по зонам
-- ✅ Поиск по зонам и связкам ключей
-- ✅ Система ролей (Администратор/Пользователь)
-- ✅ Индивидуальные пароли для сотрудников
-- ✅ История операций
-- ✅ Реальное время обновления данных
-- ✅ PostgreSQL база данных
-- ✅ JWT аутентификация
+- **Аутентификация**: JWT-токены для безопасного доступа
+- **Ролевая модель**: ADMIN и USER с разными правами доступа
+- **Реальное время**: SSE для обновления состояния в реальном времени
+- **История операций**: Полная аудитория всех действий с ключами
+- **REST API**: Современный API для интеграции
+- **Frontend**: Чистый JavaScript без фреймворков
 
-## Технологии
+## Архитектура (SOLID)
 
-- **Frontend**: HTML, CSS, JavaScript
-- **Backend**: Node.js, Express
-- **База данных**: PostgreSQL
-- **Аутентификация**: JWT
-- **Хеширование паролей**: bcrypt
+### Backend структура
+
+```
+src/
+├── db/                    # База данных
+│   ├── database.js       # Подключение и управление
+│   └── models/           # ORM модели
+│       ├── User.js       # Пользователи
+│       ├── KeyState.js   # Состояние ключей
+│       └── History.js    # История операций
+├── middleware/           # Middleware
+│   └── auth.js          # Аутентификация
+├── services/            # Бизнес-логика
+│   ├── AuthService.js   # Авторизация
+│   ├── KeyService.js    # Работа с ключами
+│   └── UserService.js   # Управление пользователями
+├── routes/              # Роутинг
+│   ├── auth.js          # Авторизация
+│   ├── keys.js          # Ключи
+│   └── users.js         # Пользователи
+└── server.js            # Главный сервер
+```
+
+### Frontend структура
+
+```
+public/
+├── index.html          # Главная страница
+├── styles.css          # Стили
+├── app.js              # Главный скрипт
+└── js/
+    ├── api.js          # API клиент
+    └── components/     # UI компоненты
+        └── LoginModal.js
+```
 
 ## Установка
 
-### Требования
-
-- Node.js >= 18.0.0
-- PostgreSQL
-
-### Локальная установка
-
 1. Клонируйте репозиторий:
 ```bash
-git clone https://github.com/MoskaPoska/Key-kiyvstar.git
-cd Key-kiyvstar
+git clone <repository-url>
+cd key-tracker
 ```
 
 2. Установите зависимости:
@@ -41,142 +62,137 @@ cd Key-kiyvstar
 npm install
 ```
 
-3. Настройте переменные окружения:
+3. Настройте окружение:
 ```bash
 cp .env.example .env
+# Отредактируйте .env с вашими настройками
 ```
 
-4. Заполните .env файл:
-```
-DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/keytracker
-JWT_SECRET=your-secret-key-here
-ADMIN_PASSWORD=admin123
-USER_PASSWORD=user123
-PORT=3000
-```
-
-5. Создайте базу данных:
-```sql
-CREATE DATABASE keytracker;
-```
-
-6. Запустите сервер:
-```bash
-npm start
-```
-
-7. Добавьте пользователей:
+4. Запустите базу данных и инициализацию:
 ```bash
 npm run setup
 ```
 
-## Использование
+## Запуск
 
-### Запуск сервера
-
+### Development
 ```bash
-# Старт в production режиме
-npm start
-
-# Старт в development режиме
 npm run dev
 ```
 
-### Добавление пользователей
-
+### Production
 ```bash
-# Для локальной разработки
-npm run setup
-
-# Для production (Railway)
-npm run setup:prod
+npm start
 ```
 
-### Переменные окружения
+Сервер будет доступен на `http://localhost:3000`
 
-| Переменная | Описание | По умолчанию |
-|------------|----------|--------------|
-| `DATABASE_URL` | Строка подключения к PostgreSQL | - |
-| `JWT_SECRET` | Секретный ключ для JWT | - |
-| `ADMIN_PASSWORD` | Пароль администратора | admin123 |
-| `USER_PASSWORD` | Пароль пользователя | user123 |
-| `PORT` | Порт сервера | 3000 |
+## API Endpoints
 
-## Документация
+### Авторизация
+- `POST /api/login` - Вход
+- `GET /api/whoami` - Информация о пользователе
 
-- [Локальное тестирование](README_LOCAL_TEST.md)
-- [Роли и пароли](README_ROLES_AND_PASSWORDS.md)
+### Ключи
+- `GET /api/state` - Состояние ключей
+- `POST /api/take` - Взять ключи
+- `POST /api/return` - Вернуть ключи
+- `POST /api/comment` - Добавить комментарий
+- `GET /api/history` - История операций
 
-## API
+### Пользователи
+- `GET /api/people` - Список пользователей
+- `POST /api/people/add` - Добавить пользователя
+- `POST /api/people/update` - Обновить пользователя
+- `POST /api/people/delete` - Удалить пользователя
+- `POST /api/change-password` - Сменить пароль
 
-### Аутентификация
+### Реальное время
+- `GET /api/events` - SSE поток для обновлений
 
-```bash
-POST /api/login
-Content-Type: application/json
+## Роли и права
 
-{
-  "name": "Администратор",
-  "password": "admin123"
-}
+### ADMIN
+- Все права USER
+- Управление пользователями
+- Установка комментариев
+- Просмотр истории
+
+### USER
+- Просмотр состояния ключей
+- Взятие и возврат ключей
+- Просмотр своей истории
+
+## Конфигурация
+
+### Environment Variables
+
+```env
+PORT=3000
+DATABASE_URL=postgresql://user:password@localhost:5432/keytracker
+JWT_SECRET=your-secret-key
 ```
 
-### Управление ключами
+### Зоны (data.json)
 
-```bash
-# Получить состояние ключей
-GET /api/state
-
-# Взять ключи
-POST /api/take
+```json
 {
-  "bundleId": "zone1-key1",
-  "personName": "Иван Иванов"
-}
-
-# Вернуть ключи
-POST /api/return
-{
-  "bundleId": "zone1-key1"
+  "zones": [
+    {
+      "name": "Zone 1",
+      "bundles": ["A1", "A2", "A3"]
+    }
+  ]
 }
 ```
-
-### Управление пользователями (только для администраторов)
-
-```bash
-# Получить список пользователей
-GET /api/people
-
-# Добавить пользователя
-POST /api/people/add
-{
-  "name": "Новый Пользователь",
-  "phone": "+380501234567",
-  "isAdmin": false
-}
-
-# Изменить пароль
-POST /api/change-password
-{
-  "id": 1,
-  "newPassword": "newpassword123"
-}
-```
-
-## Развертывание на Railway
-
-1. Зарегистрируйтесь на [Railway](https://railway.app)
-2. Подключите репозиторий GitHub
-3. Добавьте PostgreSQL базу данных
-4. Установите переменные окружения в Railway
-5. Запустите `npm run setup:prod` для создания пользователей
 
 ## Безопасность
 
-- Пароли хранятся в хешированном виде (bcrypt)
-- JWT токены с ограниченным сроком действия
-- Разграничение прав доступа по ролям
-- CORS настройки для безопасности
+- JWT токены с 24-часовым сроком действия
+- Хэширование паролей с bcrypt
+- CORS настройки
+- Валидация входных данных
+- Ролевая модель доступа
+
+## Разработка
+
+### Структура кода
+
+Проект следует принципам SOLID:
+
+- **S**ingle Responsibility: Каждый класс имеет одну ответственность
+- **O**pen/Closed: Классы открыты для расширения, закрыты для модификации
+- **L**iskov Substitution: Подтипы должны быть взаимозаменяемыми
+- **I**nterface Segregation: Интерфейсы разделены по ответственности
+- **D**ependency Inversion: Зависимости от абстракций
+
+### Тестирование
+
+Для тестирования используйте:
+```bash
+npm test
+```
+
+## Деплой
+
+### Railway
+
+1. Создайте приложение на Railway
+2. Подключите репозиторий
+3. Установите переменные окружения
+4. Запустите `npm run setup:prod`
+
+### Docker
+
+```dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+EXPOSE 3000
+CMD ["npm", "start"]
+```
 
 ## Лицензия
 

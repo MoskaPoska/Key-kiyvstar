@@ -1,5 +1,6 @@
 node_modules/
 keytracker.db
+bot_data.db
 *.log
 .DS_Store
 

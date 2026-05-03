@@ -1,50 +1,68 @@
 const bcrypt = require('bcrypt');
-const { Pool } = require('pg');
+const database = require('../src/db/database');
+const { initDatabase } = require('../src/db/init');
 
-// PostgreSQL connection for Railway
-const DATABASE_URL = process.env.DATABASE_URL;
+const DEFAULT_USERS = [
+  {
+    name: 'Администратор',
+    phone: '+380501234567',
+    password: process.env.ADMIN_PASSWORD || 'admin123',
+    isAdmin: true,
+  },
+  {
+    name: 'Пользователь',
+    phone: '',
+    password: process.env.USER_PASSWORD || 'user123',
+    isAdmin: false,
+  },
+];
 
-if (!DATABASE_URL) {
-  console.error('DATABASE_URL not set');
-  process.exit(1);
+async function upsertUser(user) {
+  const passwordHash = await bcrypt.hash(user.password, 10);
+  const role = user.isAdmin ? 'ADMIN' : 'USER';
+
+  const result = await database.query(
+    `
+      INSERT INTO users (name, phone, password_hash, is_admin, role)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (name) DO UPDATE SET
+        phone = EXCLUDED.phone,
+        password_hash = EXCLUDED.password_hash,
+        is_admin = EXCLUDED.is_admin,
+        role = EXCLUDED.role
+      RETURNING id, name, phone, is_admin, role
+    `,
+    [user.name, user.phone, passwordHash, user.isAdmin, role]
+  );
+
+  return result.rows[0];
 }
 
-const pool = new Pool({
-  connectionString: DATABASE_URL,
-});
-
-async function setupUsers() {
+async function main() {
   try {
-    console.log('Setting up users for Railway...');
-    
-    // Create default users with hashed passwords
-    const adminHash = await bcrypt.hash('admin123', 10);
-    const userHash = await bcrypt.hash('user123', 10);
-    
-    // Clear existing users
-    await pool.query('DELETE FROM people');
-    
-    // Add admin user
-    await pool.query(
-      'INSERT INTO people (name, phone, is_admin, password_hash, plain_password) VALUES ($1, $2, $3, $4, $5)',
-      ['Администратор', '+380501234567', true, adminHash, 'admin123']
-    );
-    
-    // Add regular user
-    await pool.query(
-      'INSERT INTO people (name, phone, is_admin, password_hash, plain_password) VALUES ($1, $2, $3, $4, $5)',
-      ['Пользователь', '', false, userHash, 'user123']
-    );
-    
-    console.log('Users created successfully!');
-    console.log('Admin: Администратор / admin123');
-    console.log('User: Пользователь / user123');
-    
+    const result = await initDatabase();
+
+    if (result.storage !== 'postgres') {
+      throw new Error('DATABASE_URL or POSTGRES_URL is not set');
+    }
+
+    console.log('Setting up Railway users...');
+
+    for (const user of DEFAULT_USERS) {
+      const saved = await upsertUser(user);
+      console.log(`Upserted ${saved.name} (${saved.role})`);
+    }
+
+    console.log('Railway setup complete.');
+    console.log(`Admin: ${DEFAULT_USERS[0].name} / ${DEFAULT_USERS[0].password}`);
+    console.log(`User: ${DEFAULT_USERS[1].name} / ${DEFAULT_USERS[1].password}`);
+    console.log('Zone access data will be stored in PostgreSQL table zone_access.');
   } catch (error) {
-    console.error('Error setting up users:', error);
+    console.error('Railway setup failed:', error);
+    process.exitCode = 1;
   } finally {
-    await pool.end();
+    await database.end();
   }
 }
 
-setupUsers();
+main();

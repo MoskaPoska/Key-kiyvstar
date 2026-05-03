@@ -1,0 +1,157 @@
+/* History Section */
+.history-section {
+  margin-top: 1.5rem;
+}
+
+.history-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.history-person-select {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #ede6e6;
+  color: #111827;
+  font-family: var(--font);
+  cursor: pointer;
+}
+
+.history-person-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.section-header .section-title {
+  margin-bottom: 0;
+}
+
+.buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 400px;
+  overflow-y: auto;
+  min-height: 200px; /* Минимальная высота для предотвращения дергания */
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.history-person {
+  font-weight: 500;
+  color: #111827;
+  min-width: 120px;
+}
+
+.history-action {
+  font-weight: 500;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.history-action.action-take {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.history-action.action-return {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.history-bundle {
+  font-family: ui-monospace, monospace;
+  color: #6b7280;
+  flex: 1;
+}
+
+.history-time {
+  color: #9ca3af;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.overdue-notification {
+  background: linear-gradient(90deg, #fef3c7 0%, #fde68a 100%);
+  border-bottom: 1px solid #f59e0b;
+  padding: 0.75rem 0;
+  color: #92400e;
+}
+
+.overdue-notification .container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.overdue-icon {
+  font-size: 1.2rem;
+}
+
+.overdue-text {
+  font-weight: 600;
+}
+
+.overdue-count {
+  background: #ef4444;
+  color: white;
+  padding: 0.125rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.overdue-list {
+  font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+  .history-filter {
+    flex-wrap: wrap;
+  }
+
+  .history-person-select,
+  #history-bundle-filter {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .history-list {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .history-item {
+    border-radius: 10px;
+  }
+}

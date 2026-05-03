@@ -1,0 +1,46 @@
+:root {
+  --bg: #0f172a;
+  --surface: #1e293b;
+  --surface-hover: #334155;
+  --border: #334155;
+  --text: #f1f5f9;
+  --text-muted: #94a3b8;
+  --accent: #0ea5e9;
+  --accent-hover: #38bdf8;
+  --secondary: #ede6e6;
+  --take: #10b981;
+  --return: #a78bfa;
+  --danger: #ef4444;
+  --radius: 10px;
+  --font: 'Manrope', system-ui, sans-serif;
+}
+
+/* Admin-only elements - hidden by default, shown in admin mode */
+.admin-only {
+  display: none !important;
+}
+
+body.admin-mode .admin-only {
+  display: block !important;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.4;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.container {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 1rem 1rem 1.5rem;
+}
+

@@ -2,15 +2,23 @@
   "name": "key-tracker",
   "version": "1.0.0",
   "description": "Система учёта ключей для Киевстар",
-  "main": "server.js",
+  "main": "src/server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "setup": "node setup-users.js",
-    "setup:prod": "node setup-railway-users.js",
+    "start": "node src/server.js",
+    "dev": "node src/server.js",
+    "test": "node --test --test-isolation=none",
+    "docker:db:up": "docker compose up -d",
+    "docker:db:down": "docker compose down",
+    "docker:db:logs": "docker compose logs -f postgres",
+    "db:init": "node scripts/init-database.js",
+    "setup": "node scripts/init-database.js && node scripts/setup-users.js",
+    "setup:prod": "node scripts/init-database.js && node scripts/setup-railway-users.js",
     "create-admin": "node scripts/create-admin-user.js",
-    "add-role": "node scripts/add-role-column.js"
+    "add-role": "node scripts/add-role-column.js",
+    "zoneaccess:import": "node scripts/import-zone-access.js",
+    "botdata:query": "node scripts/query-botdata.js",
+    "botdata:import": "node scripts/migrate-botdata.js",
+    "botdata:stats": "node -e \"require('./src/services/BotDataService').initialize().then(() => require('./src/services/BotDataService').getStats().then(s => console.log(s)).catch(e => console.error(e)));\""
   },
   "engines": {
     "node": ">=18.0.0"
