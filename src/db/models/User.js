@@ -6,6 +6,7 @@ class User {
     this.memoryUsers = new Map();
     this.nextId = 1;
     this.initialized = false;
+    this.tableExistsCache = new Map();
   }
 
   createDuplicateNameError() {
@@ -68,6 +69,80 @@ class User {
       await database.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false');
       await database.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT \'USER\'');
     }
+  }
+
+  async tableExists(tableName) {
+    if (!database.isPostgreSQL()) return false;
+    if (this.tableExistsCache.has(tableName)) {
+      return this.tableExistsCache.get(tableName);
+    }
+
+    const result = await database.query(
+      `
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_name = $1
+        ) AS exists
+      `,
+      [tableName]
+    );
+
+    const exists = !!(result.rows[0] && result.rows[0].exists);
+    this.tableExistsCache.set(tableName, exists);
+    return exists;
+  }
+
+  mapUserRow(row) {
+    return {
+      id: row.id,
+      name: row.name,
+      phone: row.phone,
+      isAdmin: row.is_admin,
+      role: row.role,
+      passwordHash: row.password_hash,
+      plainPassword: '',
+      source: 'users'
+    };
+  }
+
+  mapLegacyPeopleRow(row) {
+    return {
+      id: row.id,
+      name: row.name,
+      phone: row.phone,
+      isAdmin: row.is_admin,
+      role: row.role || (row.is_admin ? 'ADMIN' : 'USER'),
+      passwordHash: row.password_hash,
+      plainPassword: row.plain_password || '',
+      source: 'people'
+    };
+  }
+
+  async findLegacyByUsername(name) {
+    if (!(await this.tableExists('people'))) {
+      return null;
+    }
+
+    const result = await database.query('SELECT * FROM people WHERE name = $1', [name]);
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return this.mapLegacyPeopleRow(result.rows[0]);
+  }
+
+  async findLegacyById(id) {
+    if (!(await this.tableExists('people'))) {
+      return null;
+    }
+
+    const result = await database.query('SELECT * FROM people WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return this.mapLegacyPeopleRow(result.rows[0]);
   }
 
   async addRoleColumn() {
@@ -143,16 +218,29 @@ class User {
 
   async getAll() {
     if (database.isPostgreSQL()) {
-      const query = 'SELECT * FROM users ORDER BY name';
-      const result = await database.query(query);
+      const usersResult = await database.query('SELECT * FROM users ORDER BY name');
+      const merged = usersResult.rows.map((row) => this.mapUserRow(row));
+      const seenNames = new Set(merged.map((user) => String(user.name || '').trim().toLowerCase()));
+
+      if (await this.tableExists('people')) {
+        const peopleResult = await database.query('SELECT * FROM people ORDER BY name');
+        peopleResult.rows.forEach((row) => {
+          const mapped = this.mapLegacyPeopleRow(row);
+          const key = String(mapped.name || '').trim().toLowerCase();
+          if (key && !seenNames.has(key)) {
+            merged.push(mapped);
+            seenNames.add(key);
+          }
+        });
+      }
       
-      return result.rows.map(row => ({
-        id: row.id,
-        name: row.name,
-        phone: row.phone,
-        isAdmin: row.is_admin,
-        role: row.role
-      }));
+      return merged.map((user) => ({
+        id: user.id,
+        name: user.name,
+        phone: user.phone,
+        isAdmin: user.isAdmin,
+        role: user.role
+      })).sort((a, b) => a.name.localeCompare(b.name));
     } else {
       // In-memory storage
       return Array.from(this.memoryUsers.values())
@@ -252,19 +340,11 @@ class User {
       const query = 'SELECT * FROM users WHERE name = $1';
       const result = await database.query(query, [name]);
       
-      if (result.rows.length === 0) {
-        return null;
+      if (result.rows.length > 0) {
+        return this.mapUserRow(result.rows[0]);
       }
-      
-      const row = result.rows[0];
-      return {
-        id: row.id,
-        name: row.name,
-        phone: row.phone,
-        isAdmin: row.is_admin,
-        role: row.role,
-        passwordHash: row.password_hash
-      };
+
+      return this.findLegacyByUsername(name);
     } else {
       // In-memory storage
       const searchName = name.toLowerCase().trim();
@@ -278,24 +358,23 @@ class User {
     }
   }
 
-  async findById(id) {
+  async findById(id, preferredSource = '') {
     if (database.isPostgreSQL()) {
+      if (preferredSource === 'people') {
+        const legacyUser = await this.findLegacyById(id);
+        if (legacyUser) {
+          return legacyUser;
+        }
+      }
+
       const query = 'SELECT * FROM users WHERE id = $1';
       const result = await database.query(query, [id]);
       
-      if (result.rows.length === 0) {
-        return null;
+      if (result.rows.length > 0) {
+        return this.mapUserRow(result.rows[0]);
       }
-      
-      const row = result.rows[0];
-      return {
-        id: row.id,
-        name: row.name,
-        phone: row.phone,
-        isAdmin: row.is_admin,
-        role: row.role,
-        passwordHash: row.password_hash
-      };
+
+      return this.findLegacyById(id);
     } else {
       // In-memory storage
       return this.memoryUsers.get(id) || null;

@@ -30,6 +30,10 @@ class AuthService {
     if (person.passwordHash && person.passwordHash.length > 0) {
       passwordMatch = await bcrypt.compare(password, person.passwordHash);
     }
+
+    if (!passwordMatch && person.plainPassword) {
+      passwordMatch = password === person.plainPassword;
+    }
     
     if (!passwordMatch) {
       const error = new Error('Invalid password');
@@ -41,7 +45,8 @@ class AuthService {
       { 
         id: person.id, 
         name: person.name, 
-        role: person.role || (person.isAdmin ? 'ADMIN' : 'USER')
+        role: person.role || (person.isAdmin ? 'ADMIN' : 'USER'),
+        source: person.source || 'users'
       },
       JWT_SECRET,
       { expiresIn: '24h' }
@@ -84,7 +89,7 @@ class AuthService {
       return null;
     }
     
-    return await User.findById(decoded.id);
+    return await User.findById(decoded.id, decoded.source);
   }
 
   static isAdmin(user) {

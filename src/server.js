@@ -94,6 +94,15 @@ function createServer() {
     const pathname = getPathname(req);
 
     if (!pathname.startsWith('/api/')) {
+      if (pathname === '/health') {
+        sendJson(res, 200, {
+          ok: true,
+          status: 'healthy',
+          database: database.isPostgreSQL() ? (database.isConnected ? 'connected' : 'disconnected') : 'memory',
+        });
+        return;
+      }
+
       serveStaticFile(req, res);
       return;
     }
