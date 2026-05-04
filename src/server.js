@@ -32,6 +32,10 @@ let sseInterval = null;
 let startedServer = null;
 
 async function sendSSEUpdate() {
+  if (sseClients.size === 0) {
+    return;
+  }
+
   const state = await KeyService.getState();
   const zones = getDefaultZones();
   const data = JSON.stringify({ zones, state });
@@ -186,7 +190,11 @@ async function handleEvents(req, res) {
 
   res.write(': connected\n\n');
   sseClients.add(res);
-  await sendSSEUpdate();
+  try {
+    await sendSSEUpdate();
+  } catch (error) {
+    console.error('Initial SSE update error:', error);
+  }
 
   const pingInterval = setInterval(() => {
     res.write(': ping\n\n');
