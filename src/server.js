@@ -16,6 +16,7 @@ const { getPathname, requireAuth, requireRole, sendJson, withErrorHandling } = r
 
 const DEFAULT_PORT = Number(process.env.PORT) || 3000;
 const ROOT = __dirname;
+const APP_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GITHUB_SHA || 'dev';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -98,6 +99,7 @@ function createServer() {
         sendJson(res, 200, {
           ok: true,
           status: 'healthy',
+          version: APP_VERSION,
           database: database.isPostgreSQL() ? (database.isConnected ? 'connected' : 'disconnected') : 'memory',
         });
         return;
@@ -285,6 +287,7 @@ if (require.main === module) {
   startServer().then((server) => {
     const address = server.address();
     console.log(`Server running on port ${address.port}`);
+    console.log(`App version: ${APP_VERSION}`);
   }).catch((error) => {
     console.error('Failed to start server:', error);
     process.exit(1);
