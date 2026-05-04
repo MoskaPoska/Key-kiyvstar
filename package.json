@@ -15,6 +15,7 @@
     "setup:prod": "node scripts/init-database.js && node scripts/setup-railway-users.js",
     "create-admin": "node scripts/create-admin-user.js",
     "add-role": "node scripts/add-role-column.js",
+    "users:migrate-people": "node scripts/migrate-people-to-users.js",
     "zoneaccess:import": "node scripts/import-zone-access.js",
     "botdata:query": "node scripts/query-botdata.js",
     "botdata:import": "node scripts/migrate-botdata.js",
