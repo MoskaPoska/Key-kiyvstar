@@ -2720,10 +2720,17 @@ body.is-admin .admin-only {
   width: fit-content;
   border: 1px solid rgba(96, 117, 151, 0.42);
   border-radius: 18px;
-  background: transparent;
+  background:
+    linear-gradient(180deg, rgba(20, 31, 50, 0.96), rgba(11, 18, 32, 0.98));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 0 0 1px rgba(14, 165, 233, 0.06);
+    0 0 0 1px rgba(14, 165, 233, 0.06),
+    0 18px 38px rgba(2, 6, 23, 0.34);
+}
+
+.zone-edit-form .field {
+  width: auto;
+  margin-bottom: 0;
 }
 
 .modal-add-zone {
@@ -2873,12 +2880,18 @@ body.is-admin .admin-only {
 .zone-tkd-field {
   display: flex;
   flex-direction: column;
+  gap: 0.8rem;
+  padding: 1rem;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(71, 85, 105, 0.42);
 }
 
 .zone-tkd-hint {
-  margin-top: 0;
+  margin: 0.3rem 0 0;
   color: #94a6bf;
-  font-size: 0.95rem;
+  font-size: 0.86rem;
+  line-height: 1.5;
 }
 
 .zone-form-actions {
@@ -2887,6 +2900,9 @@ body.is-admin .admin-only {
   gap: 0.75rem;
   align-items: center;
   width: 100%;
+  margin-top: 0.15rem;
+  padding-top: 0.95rem;
+  border-top: 1px solid rgba(71, 85, 105, 0.42);
 }
 
 /* Voice button inside action row */
@@ -3020,18 +3036,22 @@ body.is-admin .admin-only {
 .tkd-entries-container {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.65rem;
 }
 
 .tkd-form-row {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr 40px;
-  gap: 0.35rem;
+  gap: 0.55rem;
   align-items: end;
+  padding: 0.75rem;
+  border-radius: 16px;
+  background: rgba(30, 41, 59, 0.46);
+  border: 1px solid rgba(71, 85, 105, 0.34);
 }
 
 .tkd-form-row--labeled {
-  margin-bottom: 0.15rem;
+  margin-bottom: 0;
 }
 
 .tkd-form-cell {
@@ -3597,6 +3617,31 @@ body.is-admin .admin-only {
 }
 
 @media (max-width: 768px) {
+  #zone-access-modal {
+    align-items: flex-end;
+    padding: 0;
+    background: rgba(2, 6, 23, 0.82);
+  }
+
+  #zone-access-modal .zone-modal {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 100dvh;
+    height: min(100dvh, 980px);
+    margin: 0;
+    border-radius: 22px 22px 0 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  #zone-access-modal .zone-modal-header {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: rgba(15, 23, 42, 0.96);
+    backdrop-filter: blur(14px);
+  }
+
   .zone-modal {
     width: min(calc(100vw - 0.75rem), 860px);
     max-width: min(calc(100vw - 0.75rem), 860px);
@@ -3792,6 +3837,7 @@ body.is-admin .admin-only {
 
   .zone-edit-form {
     padding: 1rem;
+    max-width: none;
   }
 
   .zone-edit-form .field,
@@ -3810,6 +3856,19 @@ body.is-admin .admin-only {
   .zone-form-actions--global {
     width: 100%;
     gap: 0.6rem;
+  }
+
+  #zone-access-modal .zone-form-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 4;
+    margin-top: 0.35rem;
+    padding: 0.85rem;
+    border-top: 1px solid rgba(71, 85, 105, 0.52);
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.82), rgba(15, 23, 42, 0.98));
+    box-shadow: 0 -12px 28px rgba(2, 6, 23, 0.24);
+    backdrop-filter: blur(12px);
   }
 
   .zone-edit-form .btn,
@@ -3894,15 +3953,15 @@ body.is-admin .admin-only {
     width: max-content;
     min-width: 0;
     max-width: calc(100vw - 1.5rem);
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: flex-start;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
   }
 
   .activity-menu-btn {
-    width: auto;
+    width: 100%;
     min-width: 0;
-    justify-content: center;
+    justify-content: flex-start;
     padding: 0.6rem 0.8rem;
     gap: 0.5rem;
   }
@@ -3990,7 +4049,7 @@ body.is-admin .admin-only {
   }
 
   .access-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.6rem;
   }
 
@@ -4026,6 +4085,11 @@ body.is-admin .admin-only {
   .zone-edit-form {
     gap: 0.9rem;
     padding: 0.85rem;
+    border-radius: 20px;
+  }
+
+  .zone-tkd-field {
+    padding: 0.9rem;
   }
 
   .zone-form-actions,
@@ -4033,6 +4097,13 @@ body.is-admin .admin-only {
   .tkd-actions-row {
     flex-direction: row;
     align-items: stretch;
+  }
+
+  #zone-access-modal .zone-form-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 48px;
+    gap: 0.6rem;
+    padding: 0.75rem;
   }
 
   .zone-edit-form .btn,
@@ -4056,6 +4127,12 @@ body.is-admin .admin-only {
     width: 44px;
     min-width: 44px;
     height: 44px;
+  }
+
+  #zone-access-modal .zone-form-actions .voice-input-btn--standalone {
+    width: 48px;
+    min-width: 48px;
+    height: 48px;
   }
 
   .address-card__header {
