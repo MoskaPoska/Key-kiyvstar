@@ -188,6 +188,14 @@
     }
   }
 
+  function buildAuthJsonHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    if (authToken) {
+      headers.Authorization = 'Bearer ' + authToken;
+    }
+    return headers;
+  }
+
   function getZoneDisplayName(zoneNum) {
     return zoneDisplayNames[zoneNum] || ('\u0417\u043e\u043d\u0430 ' + zoneNum);
   }
@@ -1551,7 +1559,7 @@ function showValidationErrors(errors, options = {}) {
     try {
       const res = await fetch(API_BASE + '/api/take', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildAuthJsonHeaders(),
         body: JSON.stringify({ bundleId, personName: name }),
       });
       if (!res.ok) throw new Error('Failed take');
@@ -1622,7 +1630,7 @@ function showValidationErrors(errors, options = {}) {
     try {
       const res = await fetch(API_BASE + '/api/return', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildAuthJsonHeaders(),
         body: JSON.stringify({ bundleId }),
       });
       if (!res.ok) throw new Error('Failed return');
@@ -1641,7 +1649,7 @@ function showValidationErrors(errors, options = {}) {
     try {
       const res = await fetch(API_BASE + '/api/comment', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildAuthJsonHeaders(),
         body: JSON.stringify({ bundleId, comment }),
       });
       if (!res.ok) throw new Error('Failed to save comment');

@@ -7,8 +7,16 @@ class ZoneAccessService {
   }
 
   static async getAllMerged() {
-    const importedData = await ZoneAddressService.getZoneAccessData();
     const savedData = await ZoneAccess.getAll();
+    let importedData = {};
+
+    try {
+      importedData = await ZoneAddressService.getZoneAccessData();
+    } catch (error) {
+      console.error('Failed to load imported zone access data, using saved database data only:', error);
+      importedData = {};
+    }
+
     return this.mergeZoneAccessData(importedData, savedData);
   }
 
