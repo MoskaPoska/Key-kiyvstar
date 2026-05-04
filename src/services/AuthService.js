@@ -4,6 +4,10 @@ const User = require('../db/models/User');
 const { JWT_SECRET } = require('../middleware/auth');
 
 class AuthService {
+  static isBcryptHash(value) {
+    return /^\$2[aby]\$\d{2}\$/.test(String(value || ''));
+  }
+
   static async login(name, password) {
     if (!name || !String(name).trim()) {
       const error = new Error('Name is required');
@@ -28,7 +32,16 @@ class AuthService {
 
     let passwordMatch = false;
     if (person.passwordHash && person.passwordHash.length > 0) {
-      passwordMatch = await bcrypt.compare(password, person.passwordHash);
+      if (this.isBcryptHash(person.passwordHash)) {
+        passwordMatch = await bcrypt.compare(password, person.passwordHash);
+      } else {
+        // Support legacy/plain values accidentally stored in password_hash.
+        passwordMatch = password === person.passwordHash;
+        if (passwordMatch && person.source === 'users') {
+          await User.changePassword(person.id, password);
+          person.passwordHash = null;
+        }
+      }
     }
 
     if (!passwordMatch && person.plainPassword) {
