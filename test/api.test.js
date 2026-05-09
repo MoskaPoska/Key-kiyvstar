@@ -152,10 +152,11 @@ test('duplicate user name returns 409', async () => {
 });
 
 test('zone access persistence', async () => {
+  const uniqueAddress = `Test street ${runSuffix}`;
   const payload = {
     7: [
       {
-        address: 'Test street 10',
+        address: uniqueAddress,
         code: '2580',
         tkdEntries: [{ entrance: '1', tkd: '7_1001', place: 'Hall' }]
       }
@@ -171,12 +172,22 @@ test('zone access persistence', async () => {
     body: JSON.stringify(payload)
   });
   assert.equal(saved.response.status, 200);
+  assert.equal(saved.data.ok, true);
+  assert.equal(saved.data.data['7'][0].audit.createdBy, adminName);
+  assert.equal(typeof saved.data.data['7'][0].audit.createdAt, 'number');
 
-  const loaded = await jsonRequest('/api/zone-access', {
+  const loadedAdmin = await jsonRequest('/api/zone-access', {
+    headers: { Authorization: `Bearer ${adminToken}` }
+  });
+  assert.equal(loadedAdmin.response.status, 200);
+  assert.equal(loadedAdmin.data['7'][0].audit.createdBy, adminName);
+  assert.equal(loadedAdmin.data['7'][0].code, '2580');
+
+  const loadedUser = await jsonRequest('/api/zone-access', {
     headers: { Authorization: `Bearer ${userToken}` }
   });
-  assert.equal(loaded.response.status, 200);
-  assert.deepEqual(loaded.data, payload);
+  assert.equal(loadedUser.response.status, 200);
+  assert.deepEqual(loadedUser.data, payload);
 });
 
 test('voice parse requires authentication', async () => {

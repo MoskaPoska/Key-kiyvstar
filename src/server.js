@@ -4,7 +4,7 @@ const path = require('path');
 const database = require('./db/database');
 const { initDatabase } = require('./db/init');
 const { authenticate, checkRole } = require('./middleware/auth');
-const { handleLogin, handleWhoami } = require('./routes/auth');
+const { handleLogin, handleWhoami, handleTryAutoLogin } = require('./routes/auth');
 const { handleGetState, handleTakeKeys, handleReturnKeys, handleSetComment, handleGetHistory } = require('./routes/keys');
 const { handleGetUsers, handleAddUser, handleUpdateUser, handleDeleteUser, handleChangePassword } = require('./routes/users');
 const { handleGetZoneAccess, handleGetZoneAccessFull, handleReplaceZoneAccess } = require('./routes/zoneAccess');
@@ -133,6 +133,7 @@ function createServer() {
 function matchRoute(pathname, method) {
   const routes = {
     'POST /api/login': withErrorHandling(handleLogin),
+    'POST /api/try-auto-login': withErrorHandling(handleTryAutoLogin),
     'GET /api/whoami': withErrorHandling(requireAuth(authenticate, handleWhoami)),
     'GET /api/state': withErrorHandling(requireAuth(authenticate, handleGetState)),
     'POST /api/take': withErrorHandling(requireAuth(authenticate, handleTakeKeys)),

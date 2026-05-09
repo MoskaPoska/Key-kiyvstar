@@ -41,20 +41,53 @@ function normalizeParsedVoice(payload) {
   };
 }
 
-function buildRequestBody(transcript) {
+function buildExistingEntriesContext(existingEntries) {
+  if (!existingEntries || existingEntries.length === 0) return '';
+
+  const unique = [];
+  const seen = new Set();
+  existingEntries.forEach((entry) => {
+    const parts = [];
+    if (entry.entrance) parts.push(`подъезд ${entry.entrance}`);
+    if (entry.tkd) parts.push(`ТКД ${entry.tkd}`);
+    if (entry.place) parts.push(entry.place);
+    const text = parts.join(', ');
+    if (text && !seen.has(text)) {
+      seen.add(text);
+      unique.push(text);
+    }
+  });
+
+  if (unique.length === 0) return '';
+
+  const examples = unique.slice(0, 15).join('; ');
+  return ` Known access patterns for this zone: ${examples}. Use these patterns to recognize similar access descriptions.`;
+}
+
+function buildRequestBody(transcript, zoneNum, existingEntries) {
+  let instructions = [
+    'You extract fields from short speech-to-text transcripts for address entry forms.',
+    'Return only the requested JSON schema.',
+    'The transcript may be in Russian, Ukrainian, or mixed.',
+    'Do not invent values.',
+    'If a field is missing or uncertain, return an empty string for it.',
+    'Address MUST contain ONLY the street name and house number (e.g. "Парковая, 107" or "Гагарина 10").',
+    'Do NOT include entrance info, door codes, intercom, keys, security descriptions, or any access instructions in the address — those go into the "code" field.',
+    'Code should contain ANY access-related information: entrance number, intercom code, door code, key location, concierge info, security gate code, apartment number — anything that describes how to enter or who has the key.',
+    'Zone must contain digits only.',
+    'Confidence is an integer from 0 to 100 for the extraction as a whole.',
+  ].join(' ');
+
+  if (zoneNum) {
+    instructions += ` The current zone number is ${zoneNum}.`;
+  }
+
+  const existingContext = buildExistingEntriesContext(existingEntries);
+  instructions += existingContext;
+
   return {
     model: process.env.OPENAI_VOICE_MODEL || DEFAULT_MODEL,
-    instructions: [
-      'You extract fields from short speech-to-text transcripts for address entry forms.',
-      'Return only the requested JSON schema.',
-      'The transcript may be in Russian, Ukrainian, or mixed.',
-      'Do not invent values.',
-      'If a field is missing or uncertain, return an empty string for it.',
-      'Address should contain the street name and house number if present.',
-      'Zone must contain digits only.',
-      'Code should contain the spoken access code, apartment marker, or phone-like value when clearly present.',
-      'Confidence is an integer from 0 to 100 for the extraction as a whole.',
-    ].join(' '),
+    instructions,
     input: transcript,
     text: {
       format: {
@@ -94,7 +127,7 @@ function extractOutputText(responsePayload) {
   return '';
 }
 
-async function parseTranscriptWithAI(transcript) {
+async function parseTranscriptWithAI(transcript, zoneNum, existingEntries) {
   if (!isEnabled()) {
     const error = new Error('AI voice parsing is not configured');
     error.statusCode = 503;
@@ -108,7 +141,7 @@ async function parseTranscriptWithAI(transcript) {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
     },
-    body: JSON.stringify(buildRequestBody(transcript)),
+    body: JSON.stringify(buildRequestBody(transcript, zoneNum, existingEntries)),
   });
 
   const payload = await response.json();

@@ -38,11 +38,29 @@ class ApiClient {
       body: JSON.stringify({ name, password })
     });
     this.token = data.token;
+    if (data.persistentToken) {
+      localStorage.setItem('persistentToken', data.persistentToken);
+    }
     return data;
+  }
+
+  async tryAutoLogin(persistentToken) {
+    if (!persistentToken) return null;
+    try {
+      const data = await this.request('/try-auto-login', {
+        method: 'POST',
+        body: JSON.stringify({ persistentToken })
+      });
+      this.token = data.token;
+      return data;
+    } catch {
+      return null;
+    }
   }
 
   async logout() {
     this.token = null;
+    localStorage.removeItem('persistentToken');
   }
 
   async whoami() {

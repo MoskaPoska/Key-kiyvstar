@@ -55,9 +55,36 @@
       return;
     }
 
+    const isAppleMobileDevice = function () {
+      const ua = String((navigator && navigator.userAgent) || '');
+      const platform = String((navigator && navigator.platform) || '');
+      const maxTouchPoints = Number((navigator && navigator.maxTouchPoints) || 0);
+      return /iPhone|iPad|iPod/i.test(ua) || (platform === 'MacIntel' && maxTouchPoints > 1);
+    };
+
+    const navigateToMapUrl = function (url, popupWindow) {
+      if (popupWindow && !popupWindow.closed) {
+        popupWindow.location.href = url;
+        return;
+      }
+
+      try {
+        window.location.href = url;
+      } catch (error) {
+        window.open(url, '_blank');
+      }
+    };
+
+    if (isAppleMobileDevice()) {
+      const appleMapsUrl = `https://maps.apple.com/?daddr=${encodeURIComponent(address)}&dirflg=d`;
+      window.location.href = appleMapsUrl;
+      return;
+    }
+
+    const popupWindow = window.open('', '_blank');
     const openSearchUrl = function () {
-      const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(address)}`;
-      window.open(mapsUrl, '_blank');
+      const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+      navigateToMapUrl(mapsUrl, popupWindow);
     };
 
     if (!navigator.geolocation) {
@@ -70,9 +97,14 @@
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
         const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${encodeURIComponent(address)}`;
-        window.open(mapsUrl, '_blank');
+        navigateToMapUrl(mapsUrl, popupWindow);
       },
-      openSearchUrl
+      openSearchUrl,
+      {
+        enableHighAccuracy: false,
+        timeout: 5000,
+        maximumAge: 300000,
+      }
     );
   }
 

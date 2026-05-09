@@ -74,15 +74,34 @@ class ZoneAccess {
   normalizeEntry(entry) {
     const safeEntry = entry && typeof entry === 'object' ? entry : {};
     const tkdEntries = Array.isArray(safeEntry.tkdEntries) ? safeEntry.tkdEntries : [];
+    const notes = Array.isArray(safeEntry.notes) ? safeEntry.notes : [];
 
     return {
       address: String(safeEntry.address || '').trim(),
       code: String(safeEntry.code || '').trim(),
+      notes: notes
+        .map((note) => String(note || '').trim())
+        .filter(Boolean),
       tkdEntries: tkdEntries.map((tkdEntry) => ({
         entrance: String((tkdEntry && tkdEntry.entrance) || '').trim(),
         tkd: String((tkdEntry && tkdEntry.tkd) || '').trim(),
         place: String((tkdEntry && tkdEntry.place) || '').trim()
-      }))
+      })),
+      audit: this.normalizeAudit(safeEntry.audit)
+    };
+  }
+
+  normalizeAudit(audit) {
+    const safeAudit = audit && typeof audit === 'object' ? audit : {};
+    const createdAt = Number(safeAudit.createdAt);
+    const updatedAt = Number(safeAudit.updatedAt);
+
+    return {
+      scope: String(safeAudit.scope || '').trim(),
+      createdBy: String(safeAudit.createdBy || '').trim(),
+      createdAt: Number.isFinite(createdAt) && createdAt > 0 ? createdAt : null,
+      updatedBy: String(safeAudit.updatedBy || '').trim(),
+      updatedAt: Number.isFinite(updatedAt) && updatedAt > 0 ? updatedAt : null
     };
   }
 }

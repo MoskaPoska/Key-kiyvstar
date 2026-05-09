@@ -196,11 +196,17 @@
     if (apartmentLike) {
       return `${normalizeAccessMarkers(apartmentLike[1]).trim()} ${apartmentLike[2]}`.replace(/\s+/g, ' ').trim();
     }
-    const cleaned = normalizedMarkers
+    let cleaned = normalizedMarkers
       .replace(/[.,;:]+$/g, '')
       .replace(/\s+/g, ' ')
       .trim();
     if (!cleaned) return '';
+
+    // Strip leading address-like patterns (street + number) from code
+    const streetHouseMatch = cleaned.match(/^([\p{L}\s-]+?\s+\d+[\p{L}a-z'’ʼ]?)[,\s]+(.+)$/iu);
+    if (streetHouseMatch && !isAccessDescription(streetHouseMatch[1])) {
+      cleaned = streetHouseMatch[2].trim();
+    }
 
     const markerMatch = cleaned.match(/^(?:номер|телефон|код|доступ|пароль|code|password)\s+(.+)$/iu);
     const content = trimLeadingNoiseToAccess(markerMatch ? markerMatch[1].trim() : cleaned);
@@ -216,6 +222,23 @@
     text = text.replace(/[.,;:\s]+$/g, '').trim();
     if (!/\p{L}/u.test(text)) return '';
     if (!/\d/u.test(text)) return '';
+    // Remove trailing access description (anything after a comma that looks like access info)
+    const accessAfterComma = text.match(/,\s*(.+)$/);
+    if (accessAfterComma && isAccessDescription(accessAfterComma[1])) {
+      text = text.slice(0, accessAfterComma.index).trim();
+    }
+    // Remove trailing standalone number after comma (e.g., "Парковая, 107, 2580" -> "Парковая, 107")
+    const doubleCommaNum = text.match(/^(.+?\d+[\p{L}a-z'’ʼ]?)\s*,\s*(\d{2,})\s*$/u);
+    if (doubleCommaNum) {
+      text = doubleCommaNum[1].trim();
+    }
+    // Strip trailing access markers that might be appended
+    const accessSuffix = text.match(/^(.+?)\s+(подъезд|подьезд|парадн|этаж|домофон|калитк|калиточк|ворот|двер|вход|ключ|код|консьерж|вахтер|охран|диспетчер|жэк|жек|брелок|чип|магнит).*$/iu);
+    if (accessSuffix) {
+      text = accessSuffix[1].trim();
+    }
+    if (!/\p{L}/u.test(text)) return '';
+    if (!/\d/u.test(text)) return '';
     text = text.replace(/^(\p{L})/u, (char) => char.toUpperCase());
     const match = text.match(/([^\d,]+?)\s+(\d+[\p{L}a-z'’ʼ]?)$/iu);
     if (match && !match[1].includes(',') && !match[1].trim().endsWith(',')) {
@@ -226,10 +249,50 @@
 
   function normalizeParsedParts(parts) {
     const safe = parts || {};
+    let address = normalizeAddress(safe.address || '');
+    let code = normalizeAccessCode(safe.code || '');
+    const zone = normalizeZone(safe.zone || '');
+
+    // If code contains a street+house pattern but no access description, it's likely an address split wrong
+    if (!address && code) {
+      // Skip if code starts with apartment/office markers
+      const isApartmentCode = /^(?:кв\.|квартира|стр\.|с\.)\s*\d+/iu.test(code);
+      const codeHasAddress = !isApartmentCode && /[\p{L}][^\d]{0,50}?\s+\d+[\p{L}a-z'’ʼ]?/iu.test(code);
+      const codeHasAccess = isAccessDescription(code);
+      if (codeHasAddress && !codeHasAccess) {
+        address = normalizeAddress(code);
+        code = '';
+      }
+    }
+
+    // If address contains access markers, move to code
+    if (address && !code && isAccessDescription(address)) {
+      code = address;
+      address = '';
+    }
+
+    // If address has extra parts after comma, only strip the last part to code if:
+    // - there are 3+ parts (e.g. "Улица, 10, 2580" → "Улица, 10" + code "2580")
+    // - OR the last part is clearly an access description (not a bare number)
+    if (address) {
+      const commaParts = address.split(',').map(s => s.trim());
+      if (commaParts.length >= 3) {
+        const lastPart = commaParts[commaParts.length - 1];
+        if (!code) code = lastPart;
+        address = commaParts.slice(0, -1).join(', ');
+      } else if (commaParts.length === 2) {
+        const lastPart = commaParts[1];
+        if (isAccessDescription(lastPart)) {
+          if (!code) code = lastPart;
+          address = commaParts[0];
+        }
+      }
+    }
+
     return {
-      zone: normalizeZone(safe.zone || ''),
-      address: normalizeAddress(safe.address || ''),
-      code: normalizeAccessCode(safe.code || ''),
+      zone,
+      address,
+      code,
       confidence: Number.isFinite(safe.confidence) ? safe.confidence : 0,
     };
   }
@@ -265,6 +328,19 @@
     'жэк',
     'жек',
     'ключ',
+    'слесар',
+    'вахт',
+    'охрана',
+    'ресепш',
+    'админ',
+    'регистратур',
+    'стойк',
+    'пропуск',
+    'пропускн',
+    'турникет',
+    'шлагбаум',
+    'переговор',
+    'звонок',
     'брелок',
     'таблетк',
     'чип',
@@ -283,6 +359,8 @@
     'нормальное', 'ладно', 'короче', 'вообще', 'типа', 'вроде', 'кажется', 'запиши',
     'запишите', 'пожалуйста', 'спасибо', 'здравствуйте', 'привет', 'смотри', 'слушай',
     'значит', 'вот', 'это', 'ну', 'да', 'нет', 'хорошо', 'пойдем', 'давай',
+    'добавь', 'добавить', 'добавляю', 'внести', 'вношу', 'введите',
+    'информация', 'информацию', 'данные', 'данн',
   ]);
 
   function isAccessDescription(text) {
@@ -542,7 +620,7 @@
       fetchImpl: typeof fetch === 'function' ? fetch.bind(window) : null,
     }, config || {});
 
-    return async function aiParse(transcript) {
+    return async function aiParse(transcript, rawParsed) {
       if (!options.fetchImpl || !transcript || !transcript.trim()) {
         return null;
       }
@@ -553,10 +631,16 @@
         if (token) headers.Authorization = `Bearer ${token}`;
       }
 
+      const body = { transcript };
+      if (typeof options.getZoneNum === 'function') {
+        const zoneNum = options.getZoneNum();
+        if (zoneNum) body.zoneNum = zoneNum;
+      }
+
       const response = await options.fetchImpl(options.endpoint, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ transcript }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -576,6 +660,7 @@
       aiConfidenceThreshold: 70,
       fields: {},
       isActive: () => true,
+      getZoneNum: null,
       showToast: () => {},
       onApplied: () => {},
     }, opts || {});

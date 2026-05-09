@@ -44,6 +44,115 @@
       return Array.from(set).sort();
     }
 
+    function getZoneNumberFromZoneId(zoneId) {
+      const match = String(zoneId || '').match(/^zone_(\d+)$/i);
+      return match ? match[1] : '';
+    }
+
+    function parseBundleRange(range) {
+      const [start = '', end = ''] = String(range || '').split('-');
+      return {
+        start,
+        end,
+        startNum: Number.parseInt(start, 10),
+        endNum: Number.parseInt(end, 10),
+        groupPrefix: start.length > 1 ? start.slice(0, -1) : start,
+      };
+    }
+
+    function bundleContainsKey(range, keyValue) {
+      const key = String(keyValue || '').trim();
+      if (!/^\d+$/.test(key)) {
+        return false;
+      }
+
+      const keyVariants = [key];
+      if (key.length >= 5 && key[1] === '0') {
+        keyVariants.push(key[0] + key.slice(2));
+      }
+
+      const { start, end, startNum, endNum } = parseBundleRange(range);
+
+      if (!start) {
+        return false;
+      }
+
+      if (!end) {
+        return key === start;
+      }
+
+      if (!Number.isFinite(startNum) || !Number.isFinite(endNum)) {
+        return false;
+      }
+
+      return keyVariants.some((candidate) => {
+        const candidateNum = Number.parseInt(candidate, 10);
+
+        if (start.length === end.length) {
+          return Number.isFinite(candidateNum) && candidateNum >= startNum && candidateNum <= endNum;
+        }
+
+        if (end.length === start.length + 1 && end.startsWith(start)) {
+          const basePrefix = start.slice(0, -1);
+          const startLastDigit = Number.parseInt(start.slice(-1), 10);
+          const endSuffix = Number.parseInt(end.slice(start.length), 10);
+
+          if (!Number.isFinite(startLastDigit) || !Number.isFinite(endSuffix)) {
+            return false;
+          }
+
+          if (candidate.length === start.length && basePrefix && candidate.startsWith(basePrefix)) {
+            const candidateLastDigit = Number.parseInt(candidate.slice(-1), 10);
+            return Number.isFinite(candidateLastDigit) && candidateLastDigit >= startLastDigit && candidateLastDigit <= 9;
+          }
+
+          if (candidate.length === end.length && candidate.startsWith(start)) {
+            const candidateSuffix = Number.parseInt(candidate.slice(start.length), 10);
+            return Number.isFinite(candidateSuffix) && candidateSuffix >= 0 && candidateSuffix <= endSuffix;
+          }
+
+          return false;
+        }
+
+        return Number.isFinite(candidateNum) && candidateNum >= startNum && candidateNum <= endNum;
+      });
+    }
+
+    function bundleMatchesSearch(bundle, rawQuery) {
+      const query = String(rawQuery || '').trim().toLowerCase();
+      if (!query) return true;
+
+      const zoneNumber = getZoneNumberFromZoneId(bundle.zoneId);
+      const zoneName = String(bundle.zoneName || '').toLowerCase();
+      const tkdRange = String(bundle.tkdRange || '').toLowerCase();
+      const bundleId = String(bundle.bundleId || '').toLowerCase();
+      const displayBundleId = zoneNumber ? `${zoneNumber}_${tkdRange}` : tkdRange;
+      const { start: rangeStart, end: rangeEnd } = parseBundleRange(tkdRange);
+
+      const zonePrefixedMatch = query.match(/^(\d+)[_-](.*)$/);
+      if (zonePrefixedMatch) {
+        const [, queryZone, queryTermRaw] = zonePrefixedMatch;
+        const queryTerm = String(queryTermRaw || '').trim().toLowerCase();
+        if (!queryZone || zoneNumber !== queryZone) {
+          return false;
+        }
+        if (!queryTerm) {
+          return true;
+        }
+        if (queryTerm.includes('-')) {
+          return tkdRange.startsWith(queryTerm) || displayBundleId === `${queryZone}_${queryTerm}`;
+        }
+        if (bundleContainsKey(tkdRange, queryTerm)) {
+          return true;
+        }
+        return rangeStart.startsWith(queryTerm) ||
+          rangeStart === queryTerm ||
+          rangeEnd === queryTerm;
+      }
+
+      return zoneName.includes(query) || tkdRange.includes(query) || bundleId.includes(query) || displayBundleId.includes(query);
+    }
+
     function updateSelectedBundlesDisplay() {
       if (!selectedBundlesList) return;
 
@@ -117,7 +226,7 @@
       });
 
       const filteredBundles = bundleSearchQuery
-        ? sortedBundles.filter((bundle) => bundle.tkdRange.toLowerCase().includes(bundleSearchQuery.toLowerCase()))
+        ? sortedBundles.filter((bundle) => bundleMatchesSearch(bundle, bundleSearchQuery))
         : sortedBundles;
 
       if (!filteredBundles.length) {
@@ -167,7 +276,7 @@
         if (bundleState && bundleState.comment) {
           const commentSpan = document.createElement('span');
           commentSpan.className = 'bundle-comment';
-          commentSpan.textContent = ` [${bundleState.comment}]`;
+          commentSpan.textContent = bundleState.comment;
           label.appendChild(commentSpan);
         }
 

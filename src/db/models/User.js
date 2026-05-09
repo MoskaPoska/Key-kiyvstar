@@ -39,7 +39,8 @@ class User {
         phone: '',
         isAdmin: u.isAdmin,
         role: u.isAdmin ? 'ADMIN' : 'USER',
-        passwordHash: passwordHash
+        passwordHash: passwordHash,
+        loginCount: 0
       });
     }
     this.initialized = true;
@@ -68,6 +69,7 @@ class User {
       await database.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT');
       await database.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false');
       await database.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT \'USER\'');
+      await database.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS login_count INTEGER DEFAULT 0');
     }
   }
 
@@ -102,7 +104,8 @@ class User {
       role: row.role,
       passwordHash: row.password_hash,
       plainPassword: '',
-      source: 'users'
+      source: 'users',
+      loginCount: row.login_count || 0
     };
   }
 
@@ -252,17 +255,35 @@ class User {
     const userId = Number(id);
 
     if (database.isPostgreSQL()) {
-      const query = `
-        UPDATE users 
-        SET name = $1, phone = $2, is_admin = $3, role = $4
-        WHERE id = $5
-        RETURNING *
-      `;
+      const setClauses = [];
+      const params = [];
+      let paramIndex = 1;
+
+      if (data.name !== undefined) {
+        setClauses.push(`name = $${paramIndex++}`);
+        params.push(data.name);
+      }
+      if (data.phone !== undefined) {
+        setClauses.push(`phone = $${paramIndex++}`);
+        params.push(data.phone);
+      }
+      if (data.isAdmin !== undefined) {
+        setClauses.push(`is_admin = $${paramIndex++}`);
+        params.push(data.isAdmin);
+        setClauses.push(`role = $${paramIndex++}`);
+        params.push(data.isAdmin ? 'ADMIN' : 'USER');
+      }
+
+      if (setClauses.length === 0) {
+        throw new Error('No fields to update');
+      }
+
+      params.push(userId);
+      const query = `UPDATE users SET ${setClauses.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
+
       let result;
       try {
-        result = await database.query(query, [
-          data.name, data.phone, data.isAdmin, data.isAdmin ? 'ADMIN' : 'USER', userId
-        ]);
+        result = await database.query(query, params);
       } catch (error) {
         if (this.isDuplicateNameError(error)) {
           throw this.createDuplicateNameError();
@@ -378,6 +399,40 @@ class User {
     } else {
       // In-memory storage
       return this.memoryUsers.get(id) || null;
+    }
+  }
+
+  async incrementLoginCount(id) {
+    const userId = Number(id);
+    if (database.isPostgreSQL()) {
+      const query = 'UPDATE users SET login_count = COALESCE(login_count, 0) + 1 WHERE id = $1 RETURNING login_count';
+      const result = await database.query(query, [userId]);
+      if (result.rows.length > 0) {
+        return result.rows[0].login_count;
+      }
+      return 0;
+    } else {
+      const user = this.memoryUsers.get(userId);
+      if (user) {
+        user.loginCount = (user.loginCount || 0) + 1;
+        return user.loginCount;
+      }
+      return 0;
+    }
+  }
+
+  async getLoginCount(id) {
+    const userId = Number(id);
+    if (database.isPostgreSQL()) {
+      const query = 'SELECT login_count FROM users WHERE id = $1';
+      const result = await database.query(query, [userId]);
+      if (result.rows.length > 0) {
+        return result.rows[0].login_count || 0;
+      }
+      return 0;
+    } else {
+      const user = this.memoryUsers.get(userId);
+      return user ? (user.loginCount || 0) : 0;
     }
   }
 

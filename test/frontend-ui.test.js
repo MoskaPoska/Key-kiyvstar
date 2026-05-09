@@ -177,6 +177,93 @@ test('KeysUI covers empty state, selected bundles, people list, and view panel',
   void viewKeysInfo;
 });
 
+test('KeysUI bundle search respects explicit zone prefix', () => {
+  const document = new FakeDocument();
+  const bundleList = appendElement(document, 'div', 'bundle-list');
+  appendElement(document, 'div', 'selected-bundles');
+  appendElement(document, 'section', 'people-section');
+  appendElement(document, 'div', 'people-list');
+  appendElement(document, 'div', 'view-panel');
+  appendElement(document, 'h3', 'view-person-name');
+  appendElement(document, 'a', 'view-person-phone');
+  appendElement(document, 'div', 'view-keys-info');
+  appendElement(document, 'div', 'view-bundles');
+  appendElement(document, 'div', 'view-buttons');
+
+  let searchQuery = '1_101';
+  const selectedBundleIds = new Set();
+  let selectedReturnBundleIds = new Set();
+
+  const zones = [
+    { id: 'zone_1', name: 'Zone 1', bundles: ['101-1010', '121-1211', '181-1812', '191-1912', '202-2020'] },
+    { id: 'zone_4', name: 'Zone 4', bundles: ['101-1010'] },
+  ];
+
+  const context = createBrowserContext(document, createBaseGlobals());
+  loadBrowserScript('public/js/keys/ui.js', context);
+
+  const ui = context.window.KeysUI.init({
+    escapeHtml: (value) => String(value),
+    getZones: () => zones,
+    getState: () => ({}),
+    getPeople: () => [],
+    getSelectedPerson: () => null,
+    setSelectedPerson: () => {},
+    getSelectedBundleIds: () => selectedBundleIds,
+    getSelectedReturnBundleIds: () => selectedReturnBundleIds,
+    setSelectedReturnBundleIds: (value) => {
+      selectedReturnBundleIds = value;
+    },
+    getBundleSearchQuery: () => searchQuery,
+    getZoneValue: () => '',
+    getBundleId: (zoneId, range) => `${zoneId}_${range}`,
+    isAdmin: () => false,
+    updatePerson: async () => {},
+    returnKeys: async () => {},
+    updateAdminMode: () => {},
+    formatTime: () => 'formatted',
+  });
+
+  ui.renderBundleSelect();
+  assert.equal(bundleList.children.length, 1);
+  assert.match(bundleList.textContent, /Zone 1/);
+  assert.doesNotMatch(bundleList.textContent, /Zone 4/);
+
+  searchQuery = '1_';
+  ui.renderBundleSelect();
+  assert.equal(bundleList.children.length, 5);
+  assert.match(bundleList.textContent, /Zone 1/);
+  assert.doesNotMatch(bundleList.textContent, /Zone 4/);
+
+  searchQuery = '1_12';
+  ui.renderBundleSelect();
+  assert.equal(bundleList.children.length, 1);
+  assert.match(bundleList.textContent, /121-1211/);
+  assert.doesNotMatch(bundleList.textContent, /181-1812/);
+  assert.doesNotMatch(bundleList.textContent, /191-1912/);
+
+  searchQuery = '1_125';
+  ui.renderBundleSelect();
+  assert.equal(bundleList.children.length, 1);
+  assert.match(bundleList.textContent, /121-1211/);
+
+  searchQuery = '1_10210';
+  ui.renderBundleSelect();
+  assert.equal(bundleList.children.length, 1);
+  assert.match(bundleList.textContent, /121-1211/);
+
+  searchQuery = '1_1214231123131';
+  ui.renderBundleSelect();
+  assert.equal(bundleList.children.length, 1);
+  assert.equal(bundleList.children[0].className, 'bundle-empty');
+
+  searchQuery = '1-101';
+  ui.renderBundleSelect();
+  assert.equal(bundleList.children.length, 1);
+  assert.match(bundleList.textContent, /Zone 1/);
+  assert.doesNotMatch(bundleList.textContent, /Zone 4/);
+});
+
 test('AuthPeopleUI updates login screen and user management modal behavior', () => {
   const document = new FakeDocument();
   const loginScreen = appendElement(document, 'div', 'login-screen');
@@ -294,6 +381,7 @@ test('ZoneAccessSearch matches top-level access codes', () => {
     formatAddress: (value) => value,
     formatTkdLineHtml: () => '',
     escapeHtml: (value) => String(value),
+    getZoneDisplayName: (value) => `Зона ${value}`,
     setCurrentZoneNum: (value) => {
       selectedZone = value;
     },

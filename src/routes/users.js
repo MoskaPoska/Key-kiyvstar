@@ -36,7 +36,11 @@ async function handleUpdateUser(req, res) {
     return;
   }
 
-  const result = await UserService.update(id, { name: trimmedName, phone: trimmedPhone, isAdmin: isAdmin === true });
+  const updateData = { name: trimmedName, phone: trimmedPhone };
+  if (typeof isAdmin === 'boolean') {
+    updateData.isAdmin = isAdmin;
+  }
+  const result = await UserService.update(id, updateData);
   sendJson(res, 200, { ok: true, user: result });
 }
 

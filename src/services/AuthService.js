@@ -54,6 +54,9 @@ class AuthService {
       throw error;
     }
     
+    // Increment login count
+    const loginCount = await User.incrementLoginCount(person.id);
+
     const token = jwt.sign(
       { 
         id: person.id, 
@@ -65,8 +68,24 @@ class AuthService {
       { expiresIn: '24h' }
     );
     
+    let persistentToken = null;
+    if (loginCount > 2) {
+      persistentToken = jwt.sign(
+        {
+          id: person.id,
+          name: person.name,
+          role: person.role || (person.isAdmin ? 'ADMIN' : 'USER'),
+          source: person.source || 'users',
+          persistent: true
+        },
+        JWT_SECRET,
+        { expiresIn: '30d' }
+      );
+    }
+    
     return { 
       token, 
+      persistentToken,
       user: { 
         id: person.id, 
         name: person.name, 
@@ -81,6 +100,47 @@ class AuthService {
     } catch (e) {
       return null;
     }
+  }
+
+  static async tryAutoLogin(persistentToken) {
+    if (!persistentToken) {
+      return null;
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(persistentToken, JWT_SECRET);
+    } catch (e) {
+      return null;
+    }
+    if (!decoded || !decoded.persistent) {
+      return null;
+    }
+
+    const user = await User.findById(decoded.id, decoded.source);
+    if (!user) {
+      return null;
+    }
+
+    const newToken = jwt.sign(
+      {
+        id: user.id,
+        name: user.name,
+        role: user.role || (user.isAdmin ? 'ADMIN' : 'USER'),
+        source: user.source || 'users'
+      },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    return {
+      token: newToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        role: user.role || (user.isAdmin ? 'ADMIN' : 'USER')
+      }
+    };
   }
 
   static extractToken(req) {

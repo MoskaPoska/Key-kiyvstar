@@ -94,6 +94,8 @@
    let accessAddressSearchQuery = '';
 
   const NO_DATA_TEXT = 'Пока ничего нет';
+  const ACCESS_AUDIT_SCOPE = 'access-admin-log-v2';
+  let accessAdminLogOpen = false;
 
   // ========================================
   // LocalStorage - Сохранение данных зон
@@ -155,6 +157,8 @@
         console.error('Error saving zone access data to server:', error);
       });
     }
+
+    renderAccessAdminLog();
   }
 
   function exportZoneAccessData() {
@@ -262,6 +266,11 @@
       }
       authToken = data.token;
       currentUser = data.user;
+      if (window.api) window.api.token = data.token;
+      // Save persistent token if returned (after 2+ logins)
+      if (data.persistentToken) {
+        localStorage.setItem('persistentToken', data.persistentToken);
+      }
       updateUI();
       return true;
     } catch (e) {
@@ -271,10 +280,38 @@
     }
   }
 
+  async function tryAutoLogin() {
+    const persistentToken = localStorage.getItem('persistentToken');
+    if (!persistentToken) return false;
+    try {
+      const res = await fetch(API_BASE + '/api/try-auto-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ persistentToken }),
+      });
+      if (!res.ok) {
+        localStorage.removeItem('persistentToken');
+        return false;
+      }
+      const data = await res.json();
+      authToken = data.token;
+      currentUser = data.user;
+      if (window.api) window.api.token = data.token;
+      updateUI();
+      return true;
+    } catch (e) {
+      console.error('Auto-login error:', e);
+      localStorage.removeItem('persistentToken');
+      return false;
+    }
+  }
+
   function logout() {
     authToken = null;
     currentUser = null;
+    if (window.api) window.api.token = null;
     localStorage.removeItem('authToken');
+    localStorage.removeItem('persistentToken');
     updateUI();
     location.reload(); // Перезагрузка для очистки состояния
   }
@@ -439,28 +476,13 @@ function updateUI() {
     return String.fromCharCode(0x245f + n);
   }
 
-   function getDisplayTkdEntries(addr) {
-     const raw = addr && Array.isArray(addr.tkdEntries) ? addr.tkdEntries : [];
-     const entries = raw.filter(
-       (entry) =>
-         entry &&
-         (String(entry.entrance || '').trim() ||
-           String(entry.tkd || '').trim() ||
-           String(entry.place || '').trim())
-     );
-
-     const tkdWithEntrance = new Set(
-       entries
-         .filter((entry) => String(entry.entrance || '').trim() && String(entry.tkd || '').trim())
-         .map((entry) => String(entry.tkd || '').trim().toLowerCase())
-     );
-
-     return entries.filter((entry) => {
-       const entrance = String(entry.entrance || '').trim();
-       const tkd = String(entry.tkd || '').trim().toLowerCase();
-       return entrance || !tkd || !tkdWithEntrance.has(tkd);
-     });
-   }
+    function getDisplayTkdEntries(addr) {
+      const raw = addr && Array.isArray(addr.tkdEntries) ? addr.tkdEntries : [];
+      return raw.filter((entry) => {
+        const entrance = String(entry && entry.entrance || '').trim();
+        return !!entrance;
+      });
+    }
 
    function formatTkdLineHtml(entrance, tkd, place) {
      const entranceNum = parseInt(String(entrance || '').trim(), 10);
@@ -523,21 +545,29 @@ function updateUI() {
      return items;
    }
 
-  function buildAddressCardTkdDetails(addr) {
-     const entries = getDisplayTkdEntries(addr);
-     if (!entries.length) {
-       return '<div class="address-card__tkd-empty">Нет данных ТКД — добавьте в форме редактирования (✎).</div>';
-     }
-     let html = '<div class="address-card__tkd-list">';
-     entries.forEach((e, idx) => {
-       html += `<div class="address-card__tkd-item">${formatTkdLineHtml(e.entrance, e.tkd, e.place)}</div>`;
-       if (idx < entries.length - 1) {
-         html += '<div class="address-card__tkd-separator"></div>';
-       }
-     });
-     html += '</div>';
-     return html;
-   }
+   function buildAddressCardTkdDetails(addr) {
+      const entries = getDisplayTkdEntries(addr);
+      if (!entries.length) {
+        return '<div class="address-card__tkd-empty">Нет данных ТКД — добавьте в форме редактирования (✎).</div>';
+      }
+      const sorted = [...entries].sort((a, b) => {
+        const an = parseInt(String(a.entrance || '').trim(), 10);
+        const bn = parseInt(String(b.entrance || '').trim(), 10);
+        if (Number.isFinite(an) && Number.isFinite(bn)) return an - bn;
+        if (Number.isFinite(an)) return -1;
+        if (Number.isFinite(bn)) return 1;
+        return String(a.entrance || '').localeCompare(String(b.entrance || ''));
+      });
+      let html = '<div class="address-card__tkd-list">';
+      sorted.forEach((e, idx) => {
+        html += `<div class="address-card__tkd-item">${formatTkdLineHtml(e.entrance, e.tkd, e.place)}</div>`;
+        if (idx < sorted.length - 1) {
+          html += '<div class="address-card__tkd-separator"></div>';
+        }
+      });
+      html += '</div>';
+      return html;
+    }
 
    function buildAddressCardAccessHtml(addr) {
      const accessItems = getAddressAccessItems(addr);
@@ -549,6 +579,200 @@ function updateUI() {
          <span class="address-card__access-text">${escapeHtml(item)}</span>
        </div>
      `).join('');
+   }
+
+   function getCurrentAuditActor() {
+     const name = currentUser && typeof currentUser.name === 'string' ? currentUser.name.trim() : '';
+     return name || 'Неизвестно';
+   }
+
+   function normalizeAuditInfo(audit) {
+     const safeAudit = audit && typeof audit === 'object' ? audit : {};
+     const createdAt = Number(safeAudit.createdAt);
+     const updatedAt = Number(safeAudit.updatedAt);
+
+     return {
+       scope: String(safeAudit.scope || '').trim(),
+       createdBy: String(safeAudit.createdBy || '').trim(),
+       createdAt: Number.isFinite(createdAt) && createdAt > 0 ? createdAt : null,
+       updatedBy: String(safeAudit.updatedBy || '').trim(),
+       updatedAt: Number.isFinite(updatedAt) && updatedAt > 0 ? updatedAt : null
+     };
+   }
+
+   function stampAddressAudit(existingAudit, { isNew = false } = {}) {
+     const now = Date.now();
+     const actor = getCurrentAuditActor();
+     const normalized = normalizeAuditInfo(existingAudit);
+
+     if (isNew || !normalized.createdAt) {
+       return {
+         scope: ACCESS_AUDIT_SCOPE,
+         createdBy: actor,
+         createdAt: now,
+         updatedBy: actor,
+         updatedAt: now
+       };
+     }
+
+     return {
+       scope: normalized.scope || ACCESS_AUDIT_SCOPE,
+       createdBy: normalized.createdBy || actor,
+       createdAt: normalized.createdAt,
+       updatedBy: actor,
+       updatedAt: now
+     };
+   }
+
+   function formatAuditTimestamp(timestamp) {
+     const value = Number(timestamp);
+     if (!Number.isFinite(value) || value <= 0) return 'Неизвестно';
+
+     try {
+       return new Date(value).toLocaleString('ru-RU', {
+         day: '2-digit',
+         month: '2-digit',
+         year: 'numeric',
+         hour: '2-digit',
+         minute: '2-digit'
+       });
+     } catch (error) {
+       return 'Неизвестно';
+     }
+   }
+
+   function buildAccessAuditInfoText(zoneNum, addr) {
+     const parts = [];
+     const addressText = String(addr && addr.address || '').trim();
+     const accessItems = getAddressAccessItems(addr);
+     const tkdEntries = getDisplayTkdEntries(addr);
+     const notes = Array.isArray(addr && addr.notes) ? addr.notes.map((note) => String(note || '').trim()).filter(Boolean) : [];
+
+     parts.push(`Зона ${zoneNum}`);
+
+     if (addressText) {
+       parts.push(`Адрес: ${addressText}`);
+     }
+
+     if (accessItems.length) {
+       parts.push(`Доступ: ${accessItems.join(', ')}`);
+     }
+
+     if (tkdEntries.length) {
+       const tkdText = tkdEntries
+         .map((entry) => {
+           const subparts = [];
+           if (String(entry.entrance || '').trim()) subparts.push(`пд. ${String(entry.entrance).trim()}`);
+           if (String(entry.tkd || '').trim()) subparts.push(String(entry.tkd).trim());
+           if (String(entry.place || '').trim()) subparts.push(String(entry.place).trim());
+           return subparts.join(' / ');
+         })
+         .filter(Boolean)
+         .join('; ');
+
+       if (tkdText) {
+         parts.push(`ТКД: ${tkdText}`);
+       }
+     }
+
+     if (notes.length) {
+       parts.push(`Дополнительно: ${notes.join(', ')}`);
+     }
+
+     return parts.join(' | ');
+   }
+
+   function getAccessAuditLogItems() {
+     const items = [];
+
+     Object.keys(zoneAccessData || {}).forEach((zoneNum) => {
+       const addresses = Array.isArray(zoneAccessData[zoneNum]) ? zoneAccessData[zoneNum] : [];
+       addresses.forEach((addr) => {
+         const audit = normalizeAuditInfo(addr && addr.audit);
+         const hasAudit = audit.scope === ACCESS_AUDIT_SCOPE && Boolean(
+           audit.createdAt ||
+           audit.updatedAt ||
+           audit.createdBy ||
+           audit.updatedBy
+         );
+
+         if (!hasAudit) {
+           return;
+         }
+
+         const sortTimestamp = audit.updatedAt || audit.createdAt || 0;
+
+         items.push({
+           zoneNum: String(zoneNum),
+           infoText: buildAccessAuditInfoText(zoneNum, addr),
+           createdBy: audit.createdBy || 'Неизвестно',
+           createdAt: audit.createdAt,
+           updatedBy: audit.updatedBy || '',
+           updatedAt: audit.updatedAt,
+           sortTimestamp
+         });
+       });
+     });
+
+     items.sort((a, b) => b.sortTimestamp - a.sortTimestamp);
+     return items;
+   }
+
+   function renderAccessAdminLog() {
+     const listEl = document.getElementById('access-admin-log-list');
+     const wrapperEl = document.getElementById('access-admin-log');
+     if (!listEl || !wrapperEl) return;
+
+     if (!isAdmin()) {
+       listEl.innerHTML = '';
+       return;
+     }
+
+     const items = getAccessAuditLogItems();
+     if (!items.length) {
+       listEl.innerHTML = `
+         <div class="access-admin-log__empty">
+           Пока нет добавленных записей
+         </div>
+       `;
+       return;
+     }
+
+     listEl.innerHTML = items.map((item) => {
+       const userText = item.updatedAt && item.updatedAt !== item.createdAt
+         ? `${item.createdBy} (обновил: ${item.updatedBy || item.createdBy}, ${formatAuditTimestamp(item.updatedAt)})`
+         : `${item.createdBy} (${formatAuditTimestamp(item.createdAt)})`;
+
+       return `
+         <div class="access-admin-log__row">
+           <div class="access-admin-log__col access-admin-log__col--info">${escapeHtml(item.infoText)}</div>
+           <div class="access-admin-log__col access-admin-log__col--user">${escapeHtml(userText)}</div>
+         </div>
+       `;
+     }).join('');
+   }
+
+  function updateAccessAdminLogVisibility(forceVisible = null) {
+     const wrapperEl = document.getElementById('access-admin-log');
+     const toggleBtn = document.getElementById('toggle-access-admin-log');
+     if (!wrapperEl || !toggleBtn) return;
+
+     if (!isAdmin()) {
+       accessAdminLogOpen = false;
+       wrapperEl.hidden = true;
+       toggleBtn.classList.remove('active');
+       toggleBtn.textContent = 'Список';
+       return;
+     }
+
+     const shouldShow = forceVisible === null
+       ? !accessAdminLogOpen
+       : Boolean(forceVisible);
+
+     accessAdminLogOpen = shouldShow;
+     wrapperEl.hidden = !shouldShow;
+     toggleBtn.classList.toggle('active', shouldShow);
+     toggleBtn.textContent = 'Список';
    }
 
    function createTkdFormRowEl(entry, showLabels = true) {
@@ -719,117 +943,85 @@ function updateUI() {
      return errors;
    }
 
-   // Filter addresses/TKD by search query across all zones (for keys activity)
-   function filterAddressesBySearch() {
-     const results = [];
-     const q = addressSearchQuery.trim().toLowerCase();
+    // Filter bundles by search query across all zones (for keys activity)
+    function filterAddressesBySearch() {
+      const results = [];
+      const q = addressSearchQuery.trim().toLowerCase();
 
-     if (!q) return results;
+      if (!q) return results;
 
-     // Iterate through all zones
-     Object.keys(zoneAccessData).forEach(zoneNum => {
-       const addresses = zoneAccessData[zoneNum] || [];
-       addresses.forEach((addr, addrIdx) => {
-       const fullAddress = (addr.address || '').toLowerCase();
-       const notesText = Array.isArray(addr.notes) ? addr.notes.join(' ').toLowerCase() : '';
+      const allBundles = getAllBundles();
 
-        // Check if address matches (street + house number)
-        const addressMatches = fullAddress.includes(q) || notesText.includes(q);
+      allBundles.forEach(bundle => {
+        if (bundleMatchesSearch(bundle, q)) {
+          const zoneNumber = getZoneNumberFromZoneId(bundle.zoneId);
+          const bundleState = state[bundle.bundleId];
+          results.push({
+            zoneNumber,
+            tkdRange: bundle.tkdRange,
+            bundleId: bundle.bundleId,
+            bundleState: bundleState || null,
+          });
+        }
+      });
 
-         // Check TKD entries
-         if (addr.tkdEntries && addr.tkdEntries.length > 0) {
-           addr.tkdEntries.forEach((tkdEntry, tkdIdx) => {
-             const tkdNumber = String(tkdEntry.tkd || '').trim().toLowerCase();
-             const entrance = String(tkdEntry.entrance || '').trim().toLowerCase();
-             const place = String(tkdEntry.place || '').trim().toLowerCase();
+      return results;
+    }
 
-             // TKD number match (exact or partial) - check only the TKD number itself
-             const tkdMatches = tkdNumber && tkdNumber.includes(q);
+    // Render address/TKD search results
+    function renderAddressSearchResults() {
+      if (!addressSearchResults) return;
 
-             // Entrance match
-             const entranceMatches = entrance && entrance.includes(q);
+      const list = filterAddressesBySearch();
+      addressSearchResults.innerHTML = '';
 
-             // Place match (where installed)
-             const placeMatches = place && place.includes(q);
+      if (!list.length) {
+        addressSearchResults.innerHTML = '<p class="search-no-results">Ничего не найдено</p>';
+        addressSearchResults.style.display = '';
+        return;
+      }
 
-             if (tkdMatches || entranceMatches || placeMatches || addressMatches) {
-               results.push({
-                 zoneNum,
-                 zoneName: getZoneDisplayName(zoneNum),
-                 address: addr.address,
-                 addressIdx: addrIdx,
-                 tkdEntry: { tkd: tkdNumber, entrance, place, tkdIdx },
-                 matchType: tkdMatches ? 'tkd' : (entranceMatches ? 'entrance' : (placeMatches ? 'place' : 'address'))
-               });
-             }
-           });
-         } else if (addressMatches) {
-           // Address without TKD matches
-           results.push({
-             zoneNum,
-             zoneName: getZoneDisplayName(zoneNum),
-             address: addr.address,
-             addressIdx: addrIdx,
-             tkdEntry: null,
-             matchType: 'address'
-           });
-         }
-       });
-     });
+      list.forEach(item => {
+        const el = document.createElement('div');
+        el.className = 'search-result-item';
 
-     return results;
-   }
+        const displayId = `${item.zoneNumber}_${item.tkdRange}`;
 
-   // Render address/TKD search results
-   function renderAddressSearchResults() {
-     if (!addressSearchResults) return;
+        let statusHtml;
+        if (item.bundleState?.personName) {
+          const personName = escapeHtml(item.bundleState.personName);
+          statusHtml = `<span class="bundle-status taken">занята — ${personName}</span>`;
+        } else {
+          statusHtml = `<span class="bundle-status free">Свободна</span>`;
+        }
 
-     const list = filterAddressesBySearch();
-     addressSearchResults.innerHTML = '';
+        el.innerHTML = `
+          <div class="bundle-search-info">
+            <span class="bundle-search-id">${escapeHtml(displayId)}</span>
+            ${statusHtml}
+          </div>
+        `;
 
-     if (!list.length) {
-       addressSearchResults.innerHTML = '<p class="search-no-results">Ничего не найдено</p>';
-       addressSearchResults.style.display = '';
-       return;
-     }
+        // Click opens zone
+        el.addEventListener('click', () => {
+          currentZoneNum = parseInt(item.zoneNumber, 10);
+          const zoneSelectEl = document.getElementById('zone-select');
+          if (zoneSelectEl) {
+            zoneSelectEl.value = item.zoneNumber;
+            showZoneAccessView();
+          }
+          addressSearchResults.style.display = 'none';
+          addressSearch.value = '';
+          addressSearchQuery = '';
+        });
 
-     list.forEach(item => {
-       const el = document.createElement('div');
-       el.className = 'search-result-item';
+        addressSearchResults.appendChild(el);
+      });
 
-       let subtitle = '';
-       if (item.tkdEntry) {
-         const { tkd, entrance, place } = item.tkdEntry;
-         subtitle = `Подъезд ${entrance}, ТКД ${tkd}`;
-         if (place) subtitle += `, ${place}`;
-       }
+      addressSearchResults.style.display = '';
+    }
 
-       el.innerHTML = `
-         <div class="bundle-info">${escapeHtml(item.zoneName)} — ${escapeHtml(item.address)}</div>
-         ${subtitle ? `<div class="bundle-status">${escapeHtml(subtitle)}</div>` : ''}
-       `;
-
-       // Click opens zone and highlights the address
-       el.addEventListener('click', () => {
-         // Switch to zone
-         currentZoneNum = parseInt(item.zoneNum);
-         const zoneSelectEl = document.getElementById('zone-select');
-         if (zoneSelectEl) {
-           zoneSelectEl.value = item.zoneNum;
-           showZoneAccessView();
-         }
-         addressSearchResults.style.display = 'none';
-         addressSearch.value = '';
-         addressSearchQuery = '';
-       });
-
-       addressSearchResults.appendChild(el);
-     });
-
-     addressSearchResults.style.display = '';
-   }
-
-   // Показать модальное окно с ошибками валидации
+    // Показать модальное окно с ошибками валидации
 function showValidationErrors(errors, options = {}) {
      const modal = document.getElementById('validation-modal');
      const listEl = document.getElementById('validation-error-list');
@@ -897,6 +1089,104 @@ function showValidationErrors(errors, options = {}) {
      pendingDeleteAction = { type: 'person', personId: person.id };
      messageEl.textContent = `Удалить сотрудника ${person.name}?`;
      modal.style.display = 'flex';
+   }
+
+   function isAppleMobileDevice() {
+     const ua = String((navigator && navigator.userAgent) || '');
+     const platform = String((navigator && navigator.platform) || '');
+     const maxTouchPoints = Number((navigator && navigator.maxTouchPoints) || 0);
+     return /iPhone|iPad|iPod/i.test(ua) || (platform === 'MacIntel' && maxTouchPoints > 1);
+   }
+
+   function navigateToMapUrl(url, popupWindow) {
+     if (popupWindow && !popupWindow.closed) {
+       popupWindow.location.href = url;
+       return;
+     }
+
+     try {
+       window.location.href = url;
+     } catch (error) {
+       window.open(url, '_blank');
+     }
+   }
+
+   function openAddressMap(address) {
+     if (!address) {
+       alert('Адрес не найден');
+       return;
+     }
+
+     if (isAppleMobileDevice()) {
+       const appleMapsUrl = `https://maps.apple.com/?daddr=${encodeURIComponent(address)}&dirflg=d`;
+       const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+       let appSwitched = false;
+       let fallbackTimer = null;
+
+       const markSwitched = () => {
+         appSwitched = true;
+       };
+
+       const cleanupFallback = () => {
+         if (fallbackTimer) {
+           clearTimeout(fallbackTimer);
+           fallbackTimer = null;
+         }
+         window.removeEventListener('pagehide', markSwitched);
+         document.removeEventListener('visibilitychange', handleVisibilityChange);
+       };
+
+       const handleVisibilityChange = () => {
+         if (document.visibilityState === 'hidden') {
+           markSwitched();
+           cleanupFallback();
+         }
+       };
+
+       window.addEventListener('pagehide', markSwitched, { once: true });
+       document.addEventListener('visibilitychange', handleVisibilityChange);
+
+       fallbackTimer = setTimeout(() => {
+         if (!appSwitched && document.visibilityState === 'visible') {
+           cleanupFallback();
+           window.location.href = googleMapsUrl;
+           return;
+         }
+         cleanupFallback();
+       }, 1400);
+
+       window.location.href = appleMapsUrl;
+       return;
+     }
+
+     const popupWindow = window.open('', '_blank');
+     const openSearchUrl = () => {
+       const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+       navigateToMapUrl(mapsUrl, popupWindow);
+     };
+
+     if (!navigator.geolocation) {
+       openSearchUrl();
+       return;
+     }
+
+     navigator.geolocation.getCurrentPosition(
+       (position) => {
+         const lat = position.coords.latitude;
+         const lng = position.coords.longitude;
+         const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${encodeURIComponent(address)}`;
+         navigateToMapUrl(mapsUrl, popupWindow);
+       },
+       (error) => {
+         console.warn('Геолокация не доступна:', error);
+         openSearchUrl();
+       },
+       {
+         enableHighAccuracy: false,
+         timeout: 5000,
+         maximumAge: 300000,
+       }
+     );
    }
 
     function showZoneAccessView() {
@@ -1029,7 +1319,7 @@ function showValidationErrors(errors, options = {}) {
           });
         });
 
-        // Обработчик для кнопки карты - открыть Google Maps с маршрутом
+        // Обработчик для кнопки карты
         addressesEl.querySelectorAll('.address-card__map-btn-accent').forEach((btn, btnIdx) => {
           btn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1043,29 +1333,7 @@ function showValidationErrors(errors, options = {}) {
               alert('Адрес не найден');
               return;
             }
-
-            // Попытаемся получить текущую геолокацию пользователя
-            if (navigator.geolocation) {
-              navigator.geolocation.getCurrentPosition(
-                (position) => {
-                  const lat = position.coords.latitude;
-                  const lng = position.coords.longitude;
-                  // Открываем Google Maps с маршрутом от текущей позиции до адреса
-                  const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${encodeURIComponent(address)}`;
-                  window.open(mapsUrl, '_blank');
-                },
-                (error) => {
-                  // Если геолокация не работает, просто открываем Google Maps для поиска адреса
-                  console.warn('Геолокация не доступна:', error);
-                  const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(address)}`;
-                  window.open(mapsUrl, '_blank');
-                }
-              );
-            } else {
-              // Если браузер не поддерживает геолокацию, просто открываем Google Maps
-              const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(address)}`;
-              window.open(mapsUrl, '_blank');
-            }
+            openAddressMap(address);
           });
         });
       }
@@ -1261,8 +1529,16 @@ function showValidationErrors(errors, options = {}) {
         tkdEntries = [];
       }
 
-     const addrData = { address, tkdEntries };
+     const existingAddress = editIdx !== '' ? zoneAccessData[currentZoneNum][parseInt(editIdx, 10)] : null;
+     const addrData = {
+       address,
+       tkdEntries,
+       audit: stampAddressAudit(existingAddress && existingAddress.audit, { isNew: editIdx === '' })
+     };
      if (code) addrData.code = code;
+     if (existingAddress && Array.isArray(existingAddress.notes)) {
+       addrData.notes = existingAddress.notes.slice();
+     }
 
      // Update or add
      if (editIdx !== '') {
@@ -1417,6 +1693,9 @@ function showValidationErrors(errors, options = {}) {
     } else {
       document.body.classList.remove('admin-mode');
     }
+    updatePersonSelectVisibility();
+    renderAccessAdminLog();
+    updateAccessAdminLogVisibility(accessAdminLogOpen);
   }
 
   // Дані приходять з сервера: список зон і поточний стан
@@ -1518,6 +1797,7 @@ function showValidationErrors(errors, options = {}) {
       await loadZoneAccessDataFromServer();
       
       render();
+      renderAccessAdminLog();
       renderPeopleSelect(); // Обновляем список сотрудников после загрузки данных
     } catch (e) {
       console.error('Data load error', e);
@@ -1715,7 +1995,7 @@ function showValidationErrors(errors, options = {}) {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ' + authToken
         },
-        body: JSON.stringify({ id, name: n, phone: p, isAdmin: isAdminValue || false }),
+        body: JSON.stringify({ id, name: n, phone: p, isAdmin: isAdminValue }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -1862,6 +2142,115 @@ function showValidationErrors(errors, options = {}) {
     return Array.from(set).sort();
   }
 
+  function getZoneNumberFromZoneId(zoneId) {
+    const match = String(zoneId || '').match(/^zone_(\d+)$/i);
+    return match ? match[1] : '';
+  }
+
+  function parseBundleRange(range) {
+    const [start = '', end = ''] = String(range || '').split('-');
+    return {
+      start,
+      end,
+      startNum: Number.parseInt(start, 10),
+      endNum: Number.parseInt(end, 10),
+      groupPrefix: start.length > 1 ? start.slice(0, -1) : start,
+    };
+  }
+
+  function bundleContainsKey(range, keyValue) {
+    const key = String(keyValue || '').trim();
+    if (!/^\d+$/.test(key)) {
+      return false;
+    }
+
+    const keyVariants = [key];
+    if (key.length >= 5 && key[1] === '0') {
+      keyVariants.push(key[0] + key.slice(2));
+    }
+
+    const { start, end, startNum, endNum } = parseBundleRange(range);
+
+    if (!start) {
+      return false;
+    }
+
+    if (!end) {
+      return key === start;
+    }
+
+    if (!Number.isFinite(startNum) || !Number.isFinite(endNum)) {
+      return false;
+    }
+
+    return keyVariants.some((candidate) => {
+      const candidateNum = Number.parseInt(candidate, 10);
+
+      if (start.length === end.length) {
+        return Number.isFinite(candidateNum) && candidateNum >= startNum && candidateNum <= endNum;
+      }
+
+      if (end.length === start.length + 1 && end.startsWith(start)) {
+        const basePrefix = start.slice(0, -1);
+        const startLastDigit = Number.parseInt(start.slice(-1), 10);
+        const endSuffix = Number.parseInt(end.slice(start.length), 10);
+
+        if (!Number.isFinite(startLastDigit) || !Number.isFinite(endSuffix)) {
+          return false;
+        }
+
+        if (candidate.length === start.length && basePrefix && candidate.startsWith(basePrefix)) {
+          const candidateLastDigit = Number.parseInt(candidate.slice(-1), 10);
+          return Number.isFinite(candidateLastDigit) && candidateLastDigit >= startLastDigit && candidateLastDigit <= 9;
+        }
+
+        if (candidate.length === end.length && candidate.startsWith(start)) {
+          const candidateSuffix = Number.parseInt(candidate.slice(start.length), 10);
+          return Number.isFinite(candidateSuffix) && candidateSuffix >= 0 && candidateSuffix <= endSuffix;
+        }
+
+        return false;
+      }
+
+      return Number.isFinite(candidateNum) && candidateNum >= startNum && candidateNum <= endNum;
+    });
+  }
+
+  function bundleMatchesSearch(bundle, rawQuery) {
+    const query = String(rawQuery || '').trim().toLowerCase();
+    if (!query) return true;
+
+    const zoneNumber = getZoneNumberFromZoneId(bundle.zoneId);
+    const zoneName = String(bundle.zoneName || '').toLowerCase();
+    const tkdRange = String(bundle.tkdRange || '').toLowerCase();
+    const bundleId = String(bundle.bundleId || '').toLowerCase();
+    const displayBundleId = zoneNumber ? `${zoneNumber}_${tkdRange}` : tkdRange;
+    const { start: rangeStart, end: rangeEnd } = parseBundleRange(tkdRange);
+
+    const zonePrefixedMatch = query.match(/^(\d+)[_-](.*)$/);
+    if (zonePrefixedMatch) {
+      const [, queryZone, queryTermRaw] = zonePrefixedMatch;
+      const queryTerm = String(queryTermRaw || '').trim().toLowerCase();
+      if (!queryZone || zoneNumber !== queryZone) {
+        return false;
+      }
+      if (!queryTerm) {
+        return true;
+      }
+      if (queryTerm.includes('-')) {
+        return tkdRange.startsWith(queryTerm) || displayBundleId === `${queryZone}_${queryTerm}`;
+      }
+      if (bundleContainsKey(tkdRange, queryTerm)) {
+        return true;
+      }
+      return rangeStart.startsWith(queryTerm) ||
+        rangeStart === queryTerm ||
+        rangeEnd === queryTerm;
+    }
+
+    return zoneName.includes(query) || tkdRange.includes(query) || bundleId.includes(query) || displayBundleId.includes(query);
+  }
+
   function filterBundlesBySearch() {
     let list = getAllBundles();
     if (searchQuery) {
@@ -1872,22 +2261,7 @@ function showValidationErrors(errors, options = {}) {
       const isZoneNumber = /^\d+$/.test(q);
 
       list = list.filter((b) => {
-        // Обычный поиск
-        if (
-          b.zoneName.toLowerCase().includes(qLower) ||
-          b.tkdRange.toLowerCase().includes(qLower) ||
-          b.bundleId.toLowerCase().includes(qLower)
-        ) {
-          return true;
-        }
-        // Специальный поиск по формату зона_связка, например 1_101-105
-        if (/^\d+_[^\s]+$/.test(q)) {
-          const expectedBundleId = 'zone_' + q;
-          if (b.bundleId === expectedBundleId) {
-            return true;
-          }
-        }
-        return false;
+        return bundleMatchesSearch(b, qLower);
       });
 
       // If searching by zone number, sort to show that zone first
@@ -1957,7 +2331,58 @@ function showValidationErrors(errors, options = {}) {
     });
   }
 
+  function createBundleCommentEditor(bundleId, currentComment, options = {}) {
+    const showCancel = options.showCancel !== false;
+    const editor = document.createElement('div');
+    editor.className = 'bundle-comment-editor';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'bundle-comment-editor__input';
+    input.placeholder = 'Комментарий к связке';
+    input.value = currentComment || '';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.className = 'bundle-comment-editor__save';
+    saveBtn.textContent = 'Сохранить';
+
+    saveBtn.addEventListener('click', async () => {
+      const nextComment = input.value.trim();
+      await saveComment(bundleId, nextComment);
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        saveBtn.click();
+      }
+      if (showCancel && e.key === 'Escape') {
+        e.preventDefault();
+        cancelBtn.click();
+      }
+    });
+
+    editor.appendChild(input);
+    editor.appendChild(saveBtn);
+
+    let cancelBtn = null;
+    if (showCancel) {
+      cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button';
+      cancelBtn.className = 'bundle-comment-editor__cancel';
+      cancelBtn.textContent = 'Отмена';
+      cancelBtn.addEventListener('click', () => {
+        input.value = currentComment || '';
+      });
+      editor.appendChild(cancelBtn);
+    }
+
+    return editor;
+  }
+
    function renderZoneSelect() {
+     if (!zoneSelect) return;
      zoneSelect.innerHTML = '<option value="">— Зона —</option>';
      getZonesSorted().forEach((z) => {
        const opt = document.createElement('option');
@@ -2043,6 +2468,7 @@ function showValidationErrors(errors, options = {}) {
     const placeholderOpt = document.createElement('option');
     placeholderOpt.value = '';
     placeholderOpt.disabled = true;
+    placeholderOpt.hidden = true;
     placeholderOpt.selected = !currentValue;
     placeholderOpt.textContent = 'Выбери сотрудника';
     personName.innerHTML = '';
@@ -2061,7 +2487,25 @@ function showValidationErrors(errors, options = {}) {
     if (currentValue && peopleToShow.some(p => p.name === currentValue)) {
       placeholderOpt.selected = false;
       personName.value = currentValue;
+    } else if (!isAdmin() && currentUser && currentUser.name) {
+      placeholderOpt.selected = false;
+      personName.value = currentUser.name;
     }
+
+    updatePersonSelectVisibility();
+  }
+
+  function updatePersonSelectVisibility() {
+    if (!personName) return;
+    const field = personName.closest('.field');
+    if (!field) return;
+
+    if (isAdmin()) {
+      field.style.display = '';
+      return;
+    }
+
+    field.style.display = 'none';
   }
 
   function renderPeopleManageList() {
@@ -2225,6 +2669,7 @@ function showValidationErrors(errors, options = {}) {
       currentEditPersonId = person.id;
       editPersonModalName.value = person.name;
       editPersonModalPhone.value = person.phone || '';
+      if (editPersonModalRole) editPersonModalRole.value = person.isAdmin ? 'ADMIN' : 'USER';
       editPersonModal.style.display = 'flex';
     }
     
@@ -2269,7 +2714,10 @@ function showValidationErrors(errors, options = {}) {
           }
 
           if (currentEditPersonId !== null) {
-            await updatePerson(currentEditPersonId, name, phone, null);
+            const isAdminValue = editPersonModalRole ? editPersonModalRole.value === 'ADMIN' : null;
+            await updatePerson(currentEditPersonId, name, phone, isAdminValue);
+            await loadPeople();
+            renderPeopleManageList();
             closeEditPersonModalFn();
           }
         });
@@ -2323,7 +2771,7 @@ function showValidationErrors(errors, options = {}) {
   }
 
   function renderBundleSelect() {
-    const zoneId = zoneSelect.value;
+    const zoneId = zoneSelect ? zoneSelect.value : '';
     if (!bundleList) return;
 
     bundleList.innerHTML = '';
@@ -2344,7 +2792,7 @@ function showValidationErrors(errors, options = {}) {
     });
 
     const filteredBundles = bundleSearchQuery
-      ? sortedBundles.filter((b) => b.tkdRange.toLowerCase().includes(bundleSearchQuery.toLowerCase()))
+      ? sortedBundles.filter((b) => bundleMatchesSearch(b, bundleSearchQuery))
       : sortedBundles;
 
     if (!filteredBundles.length) {
@@ -2397,7 +2845,7 @@ function showValidationErrors(errors, options = {}) {
       if (bundleState && bundleState.comment) {
         const commentSpan = document.createElement('span');
         commentSpan.className = 'bundle-comment';
-        commentSpan.textContent = ` [${bundleState.comment}]`;
+        commentSpan.textContent = bundleState.comment;
         label.appendChild(commentSpan);
       }
 
@@ -2421,7 +2869,7 @@ function showValidationErrors(errors, options = {}) {
       personDiv.className = 'person-item';
       const chip = document.createElement('span');
       chip.className = 'person-chip' + (selectedPerson === name ? ' active' : '');
-      chip.textContent = `${name} (${count})`;
+      chip.innerHTML = `<span class="person-chip-icon"><svg width="28" height="28" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="22" fill="#DBEAFE"/><ellipse cx="24" cy="43" rx="12" ry="10" fill="#374151"/><circle cx="24" cy="17" r="10" fill="#FDE68A"/><path d="M15 11c0-4 4-7 9-7s9 3 9 7-4 7-9 7-9-3-9-7z" fill="#A16207"/></svg></span><span class="person-chip-name">${escapeHtml(name)}</span><span class="person-chip-count">${count}</span>`;
       chip.addEventListener('click', () => {
         selectedPerson = selectedPerson === name ? null : name;
         renderPeople();
@@ -2468,7 +2916,7 @@ function showValidationErrors(errors, options = {}) {
         if (!person) return;
         const newPhone = prompt('Введите номер телефона:', person.phone || '');
         if (newPhone !== null) {
-          updatePerson(person.id, person.name, newPhone.trim());
+          updatePerson(person.id, person.name, newPhone.trim(), person.isAdmin);
         }
       };
     }
@@ -2483,7 +2931,7 @@ function showValidationErrors(errors, options = {}) {
         const tkdRange = parts.slice(2).join('_');
         const zone = zones.find((z) => z.id === zoneId);
         const zoneName = zone ? getShortZoneName(zone) : 'Зона неизвестна';
-        return { bundleId, zoneName, tkdRange, takenAt: data.takenAt };
+        return { bundleId, zoneName, tkdRange, takenAt: data.takenAt, comment: data.comment || '' };
       })
       .sort((a, b) => a.zoneName.localeCompare(b.zoneName) || a.tkdRange.localeCompare(b.tkdRange));
 
@@ -2541,6 +2989,17 @@ function showValidationErrors(errors, options = {}) {
       item.appendChild(checkbox);
       item.appendChild(label);
       item.appendChild(timeInfo);
+
+      if (bundle.comment) {
+        const commentInfo = document.createElement('div');
+        commentInfo.className = 'view-bundle-comment';
+        // commentInfo.textContent = `Комментарий: ${bundle.comment}`;
+        item.appendChild(commentInfo);
+      }
+
+      if (isAdmin()) {
+        item.appendChild(createBundleCommentEditor(bundle.bundleId, bundle.comment || '', { showCancel: false }));
+      }
       
       viewBundles.appendChild(item);
     });
@@ -2648,6 +3107,7 @@ function showValidationErrors(errors, options = {}) {
     renderOverdueNotification();
     updateHistoryPersonFilter();
     renderHistory();
+    renderAccessAdminLog();
     
     // Show/hide people section based on whether any keys are taken
     const hasTakenKeys = Object.keys(state).some(key => state[key] && state[key].personName);
@@ -2911,6 +3371,7 @@ function showValidationErrors(errors, options = {}) {
 const addAddressModal = document.getElementById('add-address-modal');
 const btnAddAddressAllZones = document.getElementById('btn-add-address-all-zones');
 const btnExportZoneAccess = document.getElementById('btn-export-zone-access');
+const toggleAccessAdminLogBtn = document.getElementById('toggle-access-admin-log');
 const closeAddAddressModal = document.getElementById('close-add-address-modal');
 const modalAddZone = document.getElementById('modal-add-zone');
 const modalAddCancel = document.getElementById('modal-add-cancel');
@@ -2955,6 +3416,7 @@ if (window.VoiceInput && typeof window.VoiceInput.attach === 'function') {
           const display = addAddressModal.style.display;
           return display === '' || display === 'block' || display === 'flex';
         },
+        getZoneNum: () => document.getElementById('modal-add-zone')?.value || '',
       });
     }
 
@@ -2970,6 +3432,7 @@ if (window.VoiceInput && typeof window.VoiceInput.attach === 'function') {
         const display = editForm.style.display;
         return display === '' || display === 'block' || display === 'flex';
       },
+      getZoneNum: () => currentZoneNum ? String(currentZoneNum) : '',
     };
 
     if (voiceInputBtnEdit) {
@@ -2994,6 +3457,14 @@ if (window.VoiceInput && typeof window.VoiceInput.attach === 'function') {
       modalAddCode.value = '';
       addAddressModal.style.display = '';
       if (modalAddZone) modalAddZone.focus();
+    });
+  }
+
+  if (toggleAccessAdminLogBtn) {
+    toggleAccessAdminLogBtn.textContent = 'Список';
+    toggleAccessAdminLogBtn.addEventListener('click', () => {
+      renderAccessAdminLog();
+      updateAccessAdminLogVisibility();
     });
   }
 
@@ -3050,7 +3521,8 @@ if (window.VoiceInput && typeof window.VoiceInput.attach === 'function') {
       zoneAccessData[zoneNum].push({
         address: address,
         code: code || '',
-        tkdEntries: []
+        tkdEntries: [],
+        audit: stampAddressAudit(null, { isNew: true })
       });
 
       saveZoneAccessData();
@@ -3068,106 +3540,37 @@ if (window.VoiceInput && typeof window.VoiceInput.attach === 'function') {
     });
   }
 
-  zoneSelect.addEventListener('change', () => {
-    if (bundleSearch) {
-      bundleSearch.value = '';
-      bundleSearchQuery = '';
-    }
-    renderBundleSelect();
-  });
+  if (zoneSelect) {
+    zoneSelect.addEventListener('change', () => {
+      if (bundleSearch) {
+        bundleSearch.value = '';
+        bundleSearchQuery = '';
+      }
+      renderBundleSelect();
+    });
+  }
 
   btnTake.addEventListener('click', () => {
     const bundleIds = getSelectedBundleIds();
-    const name = personName.value;
+    const name = isAdmin()
+      ? personName.value
+      : String(currentUser && currentUser.name ? currentUser.name : '').trim();
     if (!name) {
-      alert('Выбери сотрудника из списка.');
+      alert(isAdmin() ? 'Выбери сотрудника из списка.' : 'Не удалось определить авторизованного пользователя.');
       return;
     }
     if (!bundleIds.length) {
       alert('Выбери связку(и) (ТКД).');
       return;
     }
+    selectedPerson = null;
     takeKeys(bundleIds, name);
-    personName.value = '';
+    if (isAdmin()) {
+      personName.value = '';
+    }
   });
 
-  if (btnQuickSelect && quickBundleSelect) {
-    btnQuickSelect.addEventListener('click', () => {
-      const input = quickBundleSelect.value.trim();
-      if (!input) {
-        alert('Введи зону_ключ, напр. 1_101');
-        return;
-      }
-      const parts = input.split('_');
-      if (parts.length !== 2) {
-        alert('Неправильный формат. Используй: номер_зоны_ключ, напр. 1_101');
-        return;
-      }
-      const zoneNum = parts[0].trim();
-      const keyOrBundle = parts[1].trim();
-      if (!zoneNum || !keyOrBundle) {
-        alert('Неправильный формат.');
-        return;
-      }
-      // Find zone by number
-      const zone = zones.find(z => getZoneOrderNumber(z.name) === parseInt(zoneNum, 10));
-      if (!zone) {
-        alert('Зону с таким номером не найдено.');
-        return;
-      }
-      // Check if it's a full bundle range (e.g., 101-1010)
-      if (zone.bundles.includes(keyOrBundle)) {
-        const bundleId = getBundleId(zone.id, keyOrBundle);
-        selectedBundleIds.add(bundleId);
-        updateSelectedBundlesDisplay();
-        renderBundleSelect();
-        quickBundleSelect.value = '';
-        return;
-      }
-      // Try to find bundle by key number (e.g., 132 -> 131-1311)
-      const keyNum = parseInt(keyOrBundle, 10);
-      if (!isNaN(keyNum)) {
-        // Find all bundles that contain this key number and pick the smallest range
-        let foundBundles = [];
-        for (const bundle of zone.bundles) {
-          const rangeParts = bundle.split('-');
-          if (rangeParts.length === 2) {
-            const start = parseInt(rangeParts[0], 10);
-            const end = parseInt(rangeParts[1], 10);
-            if (keyNum >= start && keyNum <= end) {
-              foundBundles.push({ bundle, size: end - start });
-            }
-          } else if (rangeParts.length === 1) {
-            const key = parseInt(rangeParts[0], 10);
-            if (key === keyNum) {
-              foundBundles.push({ bundle, size: 0 });
-            }
-          }
-        }
-        if (foundBundles.length > 0) {
-          // Sort by closest start to the key number
-          foundBundles.sort((a, b) => {
-            const aStart = parseInt(a.bundle.split('-')[0], 10);
-            const bStart = parseInt(b.bundle.split('-')[0], 10);
-            return Math.abs(aStart - keyNum) - Math.abs(bStart - keyNum);
-          });
-          const bestBundle = foundBundles[0].bundle;
-          const bundleId = getBundleId(zone.id, bestBundle);
-          selectedBundleIds.add(bundleId);
-          updateSelectedBundlesDisplay();
-          renderBundleSelect();
-          quickBundleSelect.value = '';
-        } else {
-          alert('Ключ ' + keyOrBundle + ' не найден в зоне ' + zone.name);
-        }
-      } else {
-        alert('Ключ ' + keyOrBundle + ' не найден в зоне ' + zone.name);
-      }
-    });
-    quickBundleSelect.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') btnQuickSelect.click();
-    });
-  }
+  // Quick bundle select removed from UI.
 
   // People modal handlers
   if (btnManagePeople && peopleModal) {
@@ -3277,10 +3680,9 @@ if (window.VoiceInput && typeof window.VoiceInput.attach === 'function') {
     });
   }
 
-  // Person select handler
+  // Person select handler — only update admin mode, don't affect view panel
   if (personName) {
     personName.addEventListener('change', () => {
-      selectedPerson = personName.value || null;
       updateAdminMode();
     });
   }
@@ -3337,6 +3739,15 @@ if (window.VoiceInput && typeof window.VoiceInput.attach === 'function') {
     });
   }
 
+  // Switch profile button - logout and show login screen
+  const btnSwitchProfile = document.getElementById('btn-switch-profile');
+  if (btnSwitchProfile) {
+    btnSwitchProfile.addEventListener('click', () => {
+      if (peopleModal) peopleModal.style.display = 'none';
+      logout();
+    });
+  }
+
   // History person filter handler
   if (historyPersonFilter) {
     historyPersonFilter.addEventListener('change', () => {
@@ -3375,9 +3786,26 @@ if (window.VoiceInput && typeof window.VoiceInput.attach === 'function') {
 
   // Load zone access data from localStorage
   loadZoneAccessData();
-  
-  load();
-  render();
+
+  // Try auto-login with persistent token first, then load
+  tryAutoLogin().then((autoLoggedIn) => {
+    if (autoLoggedIn) {
+      console.log('Auto-login successful');
+    }
+    load();
+    render();
+    // Mobile fix: first tap on input inside fixed overlay often doesn't
+    // open keyboard. Focus the login field on the very first touch.
+    if (loginNameInput) {
+      const firstTouch = () => {
+        if (loginScreen && loginScreen.style.display !== 'none') {
+          loginNameInput.focus();
+        }
+        document.removeEventListener('touchstart', firstTouch, true);
+      };
+      document.addEventListener('touchstart', firstTouch, { capture: true, passive: true });
+    }
+  });
 })();
 
 
