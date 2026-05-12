@@ -370,6 +370,31 @@
           `;
         }
 
+        // Build access items from code + notes (like getAddressAccessItems in app.js)
+        const accessItems = [];
+        const seen = new Set();
+        const pushAccessItem = (val) => {
+          const text = String(val || '').trim();
+          if (!text) return;
+          const norm = text.toLowerCase();
+          if (seen.has(norm)) return;
+          seen.add(norm);
+          accessItems.push(text);
+        };
+        pushAccessItem(addr.code);
+        if (Array.isArray(addr.notes)) {
+          addr.notes.forEach((note) => pushAccessItem(note));
+        }
+
+        const accessHtml = accessItems.length
+          ? accessItems.map((item) => `
+              <div class="address-card__access-item address-card__phone" data-code="${escapeHtml(item)}">
+                <span class="address-card__access-icon">🔑</span>
+                <span class="address-card__access-text">${escapeHtml(item)}</span>
+              </div>
+            `).join('')
+          : '';
+
         el.innerHTML = `
           <div class="address-card__header">
             <div class="address-card__info">
@@ -379,18 +404,59 @@
             </div>
             <div class="address-card__chips">
               ${addr.code ? `<div class="address-card__chip address-card__chip--code"><span class="address-card__chip-icon">🔑</span> Доступ: ${escapeHtml(addr.code)}</div>` : ''}
+              ${accessHtml}
             </div>
           </div>
           ${tkdDetailsHtml}
         `;
 
-        el.addEventListener('click', () => {
-          setCurrentZoneNum(parseInt(item.zoneNum, 10));
-          showZoneAccessView();
-          clear();
+        resultsEl.appendChild(el);
+
+        // Click-to-call on TKD code elements that look like phone numbers
+        el.querySelectorAll('.tkd-code').forEach((span) => {
+          const text = span.textContent.trim();
+          const digitsOnly = text.replace(/\D/g, '');
+          if (digitsOnly.length >= 9) {
+            span.style.cursor = 'pointer';
+            span.addEventListener('click', (e) => {
+              e.stopPropagation();
+              if (confirm(`Позвонить по номеру ${digitsOnly}?`)) {
+                window.location.href = `tel:${digitsOnly}`;
+              }
+            });
+          }
         });
 
-        resultsEl.appendChild(el);
+        // Click-to-call on address-card__phone elements (access items from code/notes)
+        el.querySelectorAll('.address-card__phone').forEach((item) => {
+          const code = item.dataset.code || '';
+          const digitsOnly = code.replace(/\D/g, '');
+          if (digitsOnly.length >= 9) {
+            item.style.cursor = 'pointer';
+            item.addEventListener('click', (e) => {
+              e.stopPropagation();
+              if (confirm(`Позвонить по номеру ${digitsOnly}?`)) {
+                window.location.href = `tel:${digitsOnly}`;
+              }
+            });
+          }
+        });
+
+        // Click-to-call on code chip if it contains a phone number
+        const codeChip = el.querySelector('.address-card__chip--code');
+        if (codeChip) {
+          const codeText = addr.code || '';
+          const digitsOnly = codeText.replace(/\D/g, '');
+          if (digitsOnly.length >= 9) {
+            codeChip.style.cursor = 'pointer';
+            codeChip.addEventListener('click', (e) => {
+              e.stopPropagation();
+              if (confirm(`Позвонить по номеру ${digitsOnly}?`)) {
+                window.location.href = `tel:${digitsOnly}`;
+              }
+            });
+          }
+        }
       });
 
       resultsEl.style.display = '';

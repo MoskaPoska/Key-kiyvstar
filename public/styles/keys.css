@@ -727,7 +727,6 @@
   }
   
   .history-person {
-    min-width: 100px;
     font-size: 0.8rem;
   }
   
@@ -957,7 +956,6 @@
   }
 
   .history-person {
-    min-width: 80px;
     font-size: 0.75rem;
   }
 

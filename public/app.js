@@ -2858,9 +2858,9 @@ function showValidationErrors(errors, options = {}) {
     const people = getPeopleWithKeys();
     peopleList.innerHTML = '';
     
-    // Скрываем секцию если нет людей с ключами
+    // Скрываем секцию если нет людей с ключами или не в Учёт ключей
     if (peopleSection) {
-      peopleSection.style.display = people.length ? '' : 'none';
+      peopleSection.style.display = (currentActivity === 'keys' && people.length) ? '' : 'none';
     }
     
     people.forEach((name) => {
@@ -3109,10 +3109,10 @@ function showValidationErrors(errors, options = {}) {
     renderHistory();
     renderAccessAdminLog();
     
-    // Show/hide people section based on whether any keys are taken
+    // Show/hide people section based on whether any keys are taken and activity
     const hasTakenKeys = Object.keys(state).some(key => state[key] && state[key].personName);
     if (peopleSection) {
-      peopleSection.style.display = hasTakenKeys ? 'block' : 'none';
+      peopleSection.style.display = (currentActivity === 'keys' && hasTakenKeys) ? 'block' : 'none';
     }
   }
 
@@ -3326,17 +3326,6 @@ function showValidationErrors(errors, options = {}) {
           ${buildAddressCardTkdDetails(addr)}
         </div>
       `;
-
-      // Click opens zone modal and shows the address
-      el.addEventListener('click', () => {
-        // Switch to the zone
-        currentZoneNum = parseInt(item.zoneNum);
-        showZoneAccessView();
-        // Clear search
-        accessAddressSearch.value = '';
-        accessAddressSearchQuery = '';
-        accessAddressSearchResults.style.display = 'none';
-      });
 
       accessAddressSearchResults.appendChild(el);
     });
