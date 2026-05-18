@@ -68,7 +68,7 @@
   function normalize(str) {
     if (!str) return '';
     let s = String(str).toLowerCase().trim();
-    s = s.replace(/ё/g, 'е');
+    s = s.replace(/ё/g, 'е').replace(/э/g, 'е');
     // украинские буквы -> похожие русские (на случай если адрес написан на русском, а пользователь вводит украинскую)
     s = s.replace(/і/g, 'и').replace(/ї/g, 'и').replace(/є/g, 'е').replace(/ґ/g, 'г');
     // убрать сокращения
@@ -76,7 +76,7 @@
       s = s.replace(re, ' ');
     });
     // оставить только буквы/цифры/пробелы
-    s = s.replace(/[^a-zа-я0-9\s]/gi, ' ');
+    s = s.replace(/[^\p{L}\p{N}\s]/gu, ' ');
     // схлопнуть пробелы
     s = s.replace(/\s+/g, ' ').trim();
     return s;
@@ -127,125 +127,99 @@
     return 3;                     // длинные слова — до 3 опечаток
   }
 
-  // Подсчёт «сколько токенов запроса найдено в тексте» с учётом нечёткого совпадения.
-  // Возвращает { score, matched } где score — суммарный «штраф» (меньше = лучше),
-  // matched — все ли токены запроса совпали хотя бы с чем-то.
-  function fuzzyScore(queryTokens, textTokens) {
-    if (!queryTokens.length) return { score: Infinity, matched: false };
-
-    let totalScore = 0;
-    let allMatched = true;
-
-    for (const qt of queryTokens) {
-      // числовые токены (номер дома, ТКД и т.п.) — только точное совпадение / startsWith
-      const isNumeric = /^\d+$/.test(qt);
-      let bestDist = Infinity;
-
-      for (const tt of textTokens) {
-        if (isNumeric) {
-          if (tt === qt) { bestDist = 0; break; }
-          if (tt.startsWith(qt) || qt.startsWith(tt)) {
-            bestDist = Math.min(bestDist, 1);
-          }
-          continue;
-        }
-
-        // быстрая проверка: подстрока — самое лучшее совпадение
-        if (tt.includes(qt) || qt.includes(tt)) {
-          bestDist = 0;
-          break;
-        }
-
-        // сравниваем по Левенштейну, но префикс с тем же началом — приоритетнее
-        const maxLen = Math.max(qt.length, tt.length);
-        const allowed = allowedDistance(Math.min(qt.length, tt.length));
-        const d = levenshtein(qt, tt, allowed);
-        if (d <= allowed) {
-          // нормализуем в "относительную дистанцию" чтобы коротким словам штраф был меньше
-          const rel = d / Math.max(1, maxLen);
-          if (rel < bestDist) bestDist = rel;
-        }
-      }
-
-      if (bestDist === Infinity) {
-        allMatched = false;
-      } else {
-        totalScore += bestDist;
-      }
+// Проверяет совпадение запроса с ОДНИМ токеном (словом) в тексте
+  // Возвращает true если совпало
+  function tokenMatches(token, textWord) {
+    // Точное совпадение по началу
+    if (textWord.startsWith(token) || token.startsWith(textWord)) return true;
+    // Проверяем опечатку по Левенштейну
+    const minLen = Math.min(token.length, textWord.length);
+    const maxLen = Math.max(token.length, textWord.length);
+    const allowed = allowedDistance(minLen);
+    const d = levenshtein(token, textWord, allowed);
+    if (d <= allowed) {
+      const rel = d / Math.max(1, maxLen);
+      // Для коротких слов (<=5) нужен почти точный матч (rel < 0.25)
+      // Для остальных (>=6) — допускаем больше опечаток (rel < 0.35)
+      const relThreshold = maxLen <= 5 ? 0.25 : 0.35;
+      if (rel < relThreshold) return true;
     }
-
-    return { score: totalScore, matched: allMatched };
+    return false;
   }
 
-  // Главная функция: проверить совпадение запроса с текстом и вернуть оценку.
-  // Возвращает число >= 0 если совпало (меньше = лучше), либо -1 если не совпало.
-  function matchScore(rawQuery, rawText) {
-    if (!rawQuery || !rawText) return -1;
-
+  // Главная функция: проверить совпадение запроса с адресом
+  // Возвращает true если адрес совпадает с запросом
+  function addressMatches(rawQuery, address) {
     const normQuery = normalize(rawQuery);
-    const normText = normalize(rawText);
-
-    if (!normQuery || !normText) return -1;
-
-    // 1) Самое лучшее: прямое вхождение подстроки (включая исходную пунктуацию)
-    if (normText.includes(normQuery)) {
-      // бонус: чем раньше в тексте — тем лучше
-      const pos = normText.indexOf(normQuery);
-      return 0 + pos / 1000;
-    }
+    const normAddress = normalize(address);
+    if (!normQuery || !normAddress) return false;
 
     const queryTokens = normQuery.split(' ').filter(Boolean);
-    const textTokens = normText.split(' ').filter(Boolean);
+    const addressWords = normAddress.split(' ').filter(Boolean);
 
-    // 2) Нечёткое совпадение по токенам
-    const direct = fuzzyScore(queryTokens, textTokens);
-    if (direct.matched) return 1 + direct.score;
+    // Берём только первые 3 слова адреса (название улицы, номер дома)
+    const streetWords = addressWords.slice(0, 3);
 
-    // 3) Попробовать перекладку (англ. -> рус.) — если пользователь не переключил раскладку
-    const translatedQuery = normalize(toRussianLayout(rawQuery));
-    if (translatedQuery && translatedQuery !== normQuery) {
-      if (normText.includes(translatedQuery)) {
-        return 0.5 + normText.indexOf(translatedQuery) / 1000;
-      }
-      const trTokens = translatedQuery.split(' ').filter(Boolean);
-      const trScore = fuzzyScore(trTokens, textTokens);
-      if (trScore.matched) return 1.5 + trScore.score;
+    // Если запрос — одно короткое слово (<=4 буквы) — строгое начало слова
+    if (queryTokens.length === 1 && queryTokens[0].length <= 4) {
+      return streetWords.some(w => w.startsWith(queryTokens[0]));
     }
 
-    // 4) Попробовать обратную перекладку (рус. -> англ.)
-    const translatedQueryEn = normalize(toEnglishLayout(rawQuery));
-    if (translatedQueryEn && translatedQueryEn !== normQuery) {
-      if (normText.includes(translatedQueryEn)) {
-        return 0.5 + normText.indexOf(translatedQueryEn) / 1000;
+    // Если запрос — одно длинное слово (>4 букв) — fuzzy match
+    if (queryTokens.length === 1 && queryTokens[0].length > 4) {
+      // Проверяем точное начало
+      if (streetWords.some(w => w.startsWith(queryTokens[0]))) return true;
+      // Проверяем fuzzy (опечатка)
+      for (const w of streetWords) {
+        if (tokenMatches(queryTokens[0], w)) return true;
       }
+      // Проверяем layout translation
+      const translated = normalize(toRussianLayout(rawQuery));
+      if (translated && translated !== normQuery) {
+        if (streetWords.some(w => w.startsWith(translated))) return true;
+        for (const w of streetWords) {
+          if (tokenMatches(translated, w)) return true;
+        }
+      }
+      return false;
     }
 
-    return -1;
+    // Если запрос — несколько слов — все токены должны совпадать
+    for (const qt of queryTokens) {
+      const found = streetWords.some(w => w.startsWith(qt) || tokenMatches(qt, w));
+      if (!found) {
+        const translated = normalize(toRussianLayout(qt));
+        if (translated && translated !== qt && streetWords.some(w => w.startsWith(translated) || tokenMatches(translated, w))) {
+          // ok — layout match
+        } else {
+          return false;
+        }
+      }
+    }
+    return true;
   }
 
-  // Экспорт в window для использования и из других модулей при желании
-  window.FuzzySearch = {
-    normalize,
-    matchScore,
-    levenshtein,
-  };
+  // matchScore обёртка для обратной совместимости с app.js
+  function matchScore(rawQuery, rawText) {
+    return addressMatches(rawQuery, rawText) ? 0 : -1;
+  }
 
   // ===== Поиск по адресам/ТКД в активити "Доступ" =====
 
-   function init(config) {
-     const {
-       searchInput,
-       resultsEl,
-       zoneAccessData,
-       formatAddress,
-       formatTkdLineHtml,
-       escapeHtml,
-       setCurrentZoneNum,
-       showZoneAccessView,
-       getZoneDisplayName,
-     } = config;
+function init(config) {
+        const {
+          searchInput,
+          resultsEl,
+          zoneAccessData,
+          formatAddress,
+          formatTkdLineHtml,
+          escapeHtml,
+          setCurrentZoneNum,
+          showZoneAccessView,
+          getZoneDisplayName,
+        } = config;
 
-    let searchQuery = '';
+      let searchQuery = '';
 
     function filterAddressesBySearch() {
       const results = [];
@@ -404,15 +378,28 @@
             </div>
             <div class="address-card__chips">
               ${addr.code ? `<div class="address-card__chip address-card__chip--code"><span class="address-card__chip-icon">🔑</span> Доступ: ${escapeHtml(addr.code)}</div>` : ''}
-              ${accessHtml}
             </div>
+            ${accessHtml ? `<div class="address-card__access">${accessHtml}</div>` : ''}
           </div>
           ${tkdDetailsHtml}
         `;
 
         resultsEl.appendChild(el);
 
-        // Click-to-call on TKD code elements that look like phone numbers
+        // Click-to-call on access items — direct per-element handler
+        el.querySelectorAll('.address-card__phone').forEach((phoneEl) => {
+          phoneEl.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const code = phoneEl.dataset.code || '';
+            const digitsOnly = code.replace(/\D/g, '');
+            if (digitsOnly.length >= 9) {
+              if (confirm(`Позвонить по номеру ${digitsOnly}?`)) {
+                window.location.href = `tel:${digitsOnly}`;
+              }
+            }
+          });
+        });
         el.querySelectorAll('.tkd-code').forEach((span) => {
           const text = span.textContent.trim();
           const digitsOnly = text.replace(/\D/g, '');
@@ -426,22 +413,6 @@
             });
           }
         });
-
-        // Click-to-call on address-card__phone elements (access items from code/notes)
-        el.querySelectorAll('.address-card__phone').forEach((item) => {
-          const code = item.dataset.code || '';
-          const digitsOnly = code.replace(/\D/g, '');
-          if (digitsOnly.length >= 9) {
-            item.style.cursor = 'pointer';
-            item.addEventListener('click', (e) => {
-              e.stopPropagation();
-              if (confirm(`Позвонить по номеру ${digitsOnly}?`)) {
-                window.location.href = `tel:${digitsOnly}`;
-              }
-            });
-          }
-        });
-
         // Click-to-call on code chip if it contains a phone number
         const codeChip = el.querySelector('.address-card__chip--code');
         if (codeChip) {
@@ -498,6 +469,7 @@
       if (!searchInput) return;
 
       resizeSearchInput();
+
       searchInput.addEventListener('input', () => {
         resizeSearchInput();
         searchQuery = searchInput.value;

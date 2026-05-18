@@ -106,11 +106,27 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  flex: 1;
 }
 
 .zone-modal-title h3 {
   margin: 0;
   color: var(--text);
+}
+
+.zone-add-btn {
+  margin-left: auto;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.zone-add-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .zone-icon {
@@ -150,12 +166,19 @@
 
 .zone-addresses-container {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 1rem;
   width: max-content;
   max-width: 100%;
+}
+
+.zone-addresses-header,
+.zone-header {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 0.25rem;
 }
 
 .zone-empty {
@@ -960,165 +983,36 @@
 }
 
 @media (max-width: 768px) {
-  .access-search-row,
-  .zone-form-actions,
-  .zone-form-actions--global {
-    flex-wrap: wrap;
+  .access-search-row {
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+    overflow: hidden;
   }
 
-  .access-search-input,
-  #zone-select {
+  .access-search-row .search-input-wrapper {
+    flex: 1 1 0;
+    min-width: 80px;
+  }
+
+  .access-search-row .search-input-wrapper .search-input {
     width: 100%;
     min-width: 0;
-    max-width: 100%;
   }
 
-  .access-section {
-    width: 100%;
-  }
-
-  .access-search-section {
-    width: 100%;
-  }
-
-  .access-search-row {
-    align-items: stretch;
+  .access-search-row #btn-add-address-all-zones,
+  .access-search-row #toggle-access-admin-log {
+    flex-shrink: 0;
   }
 
   #btn-add-address-all-zones {
-    align-self: stretch;
-    width: 48px !important;
-    height: auto !important;
-    min-height: 44px;
+    flex-shrink: 0;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
   }
 
-  .access-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    width: 100%;
-  }
-
-  .zone-btn {
-    width: 100%;
-  }
-
-  .zone-modal,
-  .modal-add-zone {
-    width: min(100vw - 1rem, 680px);
-    max-width: min(100vw - 1rem, 680px);
-    max-height: 92vh;
-    margin: 0.5rem;
-  }
-
-  .zone-modal .modal-body,
-  .modal-add-zone .modal-body {
-    padding: 0.9rem 0.9rem 1.2rem;
-  }
-
-  .zone-modal-header,
-  .zone-modal-footer {
-    padding: 0.85rem 0.9rem;
-  }
-
-  .zone-addresses-container,
-  .zone-edit-form,
-  .zone-edit-form--global {
-    width: 100%;
-  }
-
-  .zone-addresses-container {
-    gap: 0.9rem;
-  }
-
-  .zone-edit-form {
-    padding: 1rem;
-    gap: 0.85rem;
-  }
-
-  .zone-edit-form .field,
-  .zone-edit-form .input-with-icon,
-  .zone-edit-form--global .field,
-  .zone-edit-form--global .input-with-icon,
-  #access-form-address,
-  #access-form-code,
-  .modal-add-zone-input,
-  .tkd-actions-row {
-    width: 100%;
-    max-width: 100%;
-  }
-
-  .zone-form-field--compact {
-    width: 100%;
-  }
-
-  .zone-form-actions,
-  .zone-form-actions--global {
-    width: 100%;
-    gap: 0.6rem;
-  }
-
-  .zone-edit-form .btn,
-  .tkd-add-row-btn {
-    width: auto;
-    min-width: 0;
-    flex: 1 1 calc(50% - 0.3rem);
-  }
-
-  .voice-input-btn--actions,
-  .voice-input-btn--standalone {
-    flex: 0 0 44px;
-  }
-
-  .address-card {
-    width: 100%;
-  }
-
-  .address-card__header {
-    gap: 0.6rem;
-    padding: 0.85rem;
-  }
-
-  .address-card__info,
-  .address-card__chips,
-  .address-card__actions {
-    width: 100%;
-  }
-
-  .address-card__info {
-    gap: 0.4rem;
-  }
-
-  .address-card__street {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
-  .address-card__actions {
-    justify-content: flex-start;
-  }
-
-  .address-card__chip {
-    white-space: normal;
-  }
-
-  .address-card__details {
-    padding: 0 0.85rem 0.85rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .access-grid {
-    grid-template-columns: 1fr 1fr;
-    gap: 0.6rem;
-  }
-
-  .access-search-row {
-    flex-direction: row;
-    align-items: stretch;
-  }
-
-  .access-search-input {
-    flex: 1 1 auto;
-    min-width: 0;
+  .access-admin-log-toggle {
+    flex-shrink: 0;
   }
 
   .zone-modal,
@@ -1179,6 +1073,29 @@
 
   .address-card__header {
     padding: 0.8rem;
+  }
+
+  .access-admin-log-toggle {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .access-search-row {
+    gap: 0.25rem;
+    padding-left: 0.25rem;
+  }
+
+  .access-search-row .search-input-wrapper {
+    flex: 1 1 0;
+    min-width: 0;
+    width: 0;
+  }
+
+  .access-admin-log-toggle {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
   }
 
   .address-card__details {

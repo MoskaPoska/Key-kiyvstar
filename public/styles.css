@@ -179,6 +179,13 @@ body {
   max-width: 460px;
 }
 
+.access-search-row .search-input-wrapper {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  max-width: none;
+}
+
 
 .search-input-icon {
   position: absolute;
@@ -210,7 +217,14 @@ body {
   gap: 1rem;
   flex-wrap: wrap;
   justify-content: flex-start;
-  padding-left: 0.5rem;
+  padding-left: 0.1rem;
+  width: 100%;
+}
+
+.access-search-row .access-search-input {
+  width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 body.admin-mode .access-admin-log[hidden],
@@ -3420,6 +3434,14 @@ body.is-admin .admin-only {
   gap: 1.35rem;
 }
 
+.zone-addresses-header,
+.zone-header {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 0.25rem;
+}
+}
+
 .zone-empty {
   display: grid;
   place-items: center;
@@ -5215,24 +5237,35 @@ body.is-admin .admin-only {
   .access-search-row {
     flex-direction: row;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     gap: 0.5rem;
+    padding-left: 0.5rem;
   }
 
   .access-search-row .search-input-wrapper {
+    flex: 1 1 auto;
     min-width: 0;
-    max-width: 130px;
+    width: auto;
+    max-width: none;
   }
 
   .access-search-row .access-search-input {
-    flex: 0 1 auto;
+    flex: 1 1 auto;
     min-width: 0;
     max-width: 100%;
     width: 100%;
   }
 
+  #btn-add-address-all-zones {
+    flex-shrink: 0;
+    width: 44px !important;
+    min-width: 44px;
+  }
+
   .access-admin-log-toggle {
-    margin-left: auto;
+    flex-shrink: 0;
+    min-width: 60px;
+    width: auto;
   }
 
   .zone-modal,

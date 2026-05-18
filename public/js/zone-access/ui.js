@@ -37,8 +37,8 @@
     const accessAddressSearch = replaceNode('access-address-search');
     const accessAddressSearchResults = document.getElementById('access-address-search-results');
     const addAddressModal = document.getElementById('add-address-modal');
-    const btnAddAddress = replaceNode('btn-add-address');
     const btnAddAddressAllZones = replaceNode('btn-add-address-all-zones');
+    const btnAddAddressInZone = replaceNode('btn-add-address-in-zone');
     const closeAddAddressModal = replaceNode('close-add-address-modal');
     const modalAddZone = replaceNode('modal-add-zone');
     const modalAddAddress = document.getElementById('modal-add-address');
@@ -168,7 +168,7 @@
           `;
         } else {
           if (zoneModal) zoneModal.classList.remove('zone-modal--empty');
-          addressesEl.innerHTML = addresses.map((addr, idx) => `
+          const addressesHtml = addresses.map((addr, idx) => `
             <div class="address-card" data-idx="${idx}">
               <div class="address-card__header">
                 <div class="address-card__info">
@@ -191,6 +191,8 @@
               </div>
             </div>
           `).join('');
+          const zoneHeader = addressesEl.querySelector('.zone-addresses-header');
+          addressesEl.innerHTML = (zoneHeader ? zoneHeader.outerHTML : '<div class="zone-addresses-header"></div>') + addressesHtml;
         }
       } catch (e) {
         console.error('Error showing zone access view:', e);
@@ -214,10 +216,6 @@
         zoneAccessModalEl.classList.remove('zone-modal--form');
         zoneAccessModalEl.classList.remove('zone-modal--add-form');
       }
-      if (btnAddAddress) {
-        btnAddAddress.style.display = '';
-      }
-
       // Re-setup event listeners for address cards
       if (addressesEl) {
         setupAddressCardListeners(addressesEl);
@@ -266,63 +264,27 @@
             if (confirm(`Позвонить по номеру ${code}?`)) {
               window.location.href = `tel:${code}`;
             }
-            return;
           }
-
-          copyCodeValue(code);
         });
       });
 
-      addressesEl.querySelectorAll('.address-card__map-btn-accent').forEach((btn) => {
+      addressesEl.querySelectorAll('.address-card__code-copy').forEach((btn) => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
-          const card = btn.closest('.address-card');
-          const streetSpan = card ? card.querySelector('.address-card__street') : null;
-          const address = streetSpan ? streetSpan.textContent.trim() : null;
-          openAddressMap(address);
+          const code = btn.dataset.code;
+          if (code) copyCodeValue(code);
         });
       });
-    }
 
-    function showZoneAccessEdit(addNew, editIdx) {
-      currentFormMode = { addNew, editIdx };
-
-      const currentZoneNum = getCurrentZoneNum();
-      const addressInput = document.getElementById('access-form-address');
-      const codeInput = document.getElementById('access-form-code');
-      const tkdContainer = document.getElementById('tkd-entries-container');
-      const addresses = zoneAccessData[currentZoneNum] || [];
-      const addr = editIdx >= 0 ? addresses[editIdx] : null;
-      const titleEl = document.getElementById('zone-access-title');
-      const idxInputEl = document.getElementById('edit-address-idx');
-      const editFormEl = document.getElementById('zone-edit-form');
-      const addressListEl = document.getElementById('zone-addresses');
-      const tkdFieldEl = document.getElementById('zone-tkd-field');
-      const zoneFormVoiceBtnEl = document.getElementById('voice-input-zone-form');
-
-      if (addressInput) addressInput.classList.remove('input-error');
-      if (codeInput) codeInput.classList.remove('input-error');
-      if (tkdContainer) {
-        tkdContainer.querySelectorAll('.input-error').forEach((el) => el.classList.remove('input-error'));
-      }
-
-      if (titleEl) titleEl.textContent = addNew ? 'Добавить адрес' : 'Редактировать';
-      if (addressInput) addressInput.value = addr ? addr.address : '';
-      if (codeInput) codeInput.value = addr ? (addr.code || '') : '';
-      if (idxInputEl) idxInputEl.value = editIdx >= 0 ? editIdx : '';
-      if (tkdFieldEl) tkdFieldEl.style.display = editIdx >= 0 ? 'flex' : 'none';
-      if (zoneFormVoiceBtnEl) zoneFormVoiceBtnEl.style.display = editIdx >= 0 ? 'none' : 'inline-flex';
-
-      if (tkdContainer) {
-        mountTkdFormRows(tkdContainer, editIdx >= 0 && addr && addr.tkdEntries ? addr.tkdEntries : []);
-      }
-
-      if (editFormEl) editFormEl.style.display = 'flex';
-      if (addressListEl) addressListEl.style.display = 'none';
-      if (zoneAccessModalEl) zoneAccessModalEl.classList.remove('zone-modal--empty');
-      if (zoneAccessModalEl) zoneAccessModalEl.classList.add('zone-modal--form');
-      if (zoneAccessModalEl) zoneAccessModalEl.classList.toggle('zone-modal--add-form', !!addNew);
-      if (btnAddAddress) btnAddAddress.style.display = 'none';
+      addressesEl.querySelectorAll('.address-card__map-btn, .address-card__map-btn-accent').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const address = btn.dataset.address;
+          if (address && window.ZoneAccessViewHelpers && typeof window.ZoneAccessViewHelpers.openAddressMap === 'function') {
+            window.ZoneAccessViewHelpers.openAddressMap(address);
+          }
+});
+      });
     }
 
     function returnToZoneAddressList() {
@@ -407,7 +369,7 @@
         },
         showToast,
       })
-      : null;
+: null;
     const zoneAccessAddAddressModal = window.ZoneAccessAddAddressModal && typeof window.ZoneAccessAddAddressModal.init === 'function'
       ? window.ZoneAccessAddAddressModal.init({
         addAddressModal,
@@ -421,6 +383,30 @@
         zoneAccessData,
         saveZoneAccessData,
         showToast,
+        onAdded: function () {
+          if (typeof setCurrentZoneNum === 'function') setCurrentZoneNum(currentZoneNum);
+          showZoneAccessView();
+        },
+      })
+      : null;
+    const zoneAccessAddAddressModalInZone = window.ZoneAccessAddAddressModal && typeof window.ZoneAccessAddAddressModal.init === 'function'
+      ? window.ZoneAccessAddAddressModal.init({
+        addAddressModal,
+        openButton: btnAddAddressInZone,
+        closeButton: closeAddAddressModal,
+        cancelButton: modalAddCancel,
+        confirmButton: modalAddConfirm,
+        zoneInput: modalAddZone,
+        addressInput: modalAddAddress,
+        codeInput: modalAddCode,
+        zoneAccessData,
+        saveZoneAccessData,
+        showToast,
+        getZone: function () { return currentZoneNum; },
+        onAdded: function () {
+          if (typeof setCurrentZoneNum === 'function') setCurrentZoneNum(currentZoneNum);
+          showZoneAccessView();
+        },
       })
       : null;
     const zoneAccessDeleteModal = window.ZoneAccessDeleteModal && typeof window.ZoneAccessDeleteModal.init === 'function'
@@ -435,12 +421,6 @@
         onDeleted: showZoneAccessView,
       })
       : null;
-
-    if (btnAddAddress) {
-      btnAddAddress.addEventListener('click', () => {
-        showZoneAccessEdit(true, -1);
-      });
-    }
 
     if (btnCancelEdit) {
       btnCancelEdit.addEventListener('click', () => {

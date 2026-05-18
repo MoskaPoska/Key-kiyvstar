@@ -6,14 +6,18 @@
   function formatAddress(address) {
     if (!address) return '';
 
-    const match = String(address).match(/^(.+?)\s+(\d+.*)$/);
+    let raw = String(address);
+    raw = raw.replace(/,\s*,/g, ',').replace(/,\s+$/g, '').trim();
+    
+    const match = raw.match(/^(.+?)\s+(\d+.*)$/);
     if (match) {
-      const street = match[1].trim();
+      let street = match[1].trim();
+      street = street.replace(/,+$/, '').trim();
       const building = match[2].trim();
       return street + ', ' + building;
     }
 
-    return String(address);
+    return raw;
   }
 
   function parseAddressSortParts(address) {
