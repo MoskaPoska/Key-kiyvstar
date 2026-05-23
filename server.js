@@ -683,14 +683,23 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // Return keys (anyone can return)
+    // Return keys
     if (req.url === '/api/return' && method === 'POST') {
+      const user = authenticate(req, res);
+      if (!user) return;
+
       try {
         const body = await parseBody(req);
         const { bundleId } = body;
         
         const state = await getStateFromDB();
         const currentHolder = state[bundleId]?.personName;
+        
+        // Only the person who took the keys or an admin can return them
+        if (currentHolder && currentHolder !== user.name && user.role !== 'ADMIN') {
+          sendJson(403, { error: 'Вы не можете вернуть чужие ключи' });
+          return;
+        }
         
         await deleteStateFromDB(bundleId);
         

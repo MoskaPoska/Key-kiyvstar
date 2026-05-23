@@ -55,57 +55,41 @@
       return;
     }
 
-    const isAppleMobileDevice = function () {
-      const ua = String((navigator && navigator.userAgent) || '');
-      const platform = String((navigator && navigator.platform) || '');
-      const maxTouchPoints = Number((navigator && navigator.maxTouchPoints) || 0);
-      return /iPhone|iPad|iPod/i.test(ua) || (platform === 'MacIntel' && maxTouchPoints > 1);
-    };
+    const ua = String((navigator && navigator.userAgent) || '');
+    const isAppleMobile = /iPhone|iPad|iPod/i.test(ua);
+    const isMobile = isAppleMobile || /Android/i.test(ua);
 
-    const navigateToMapUrl = function (url, popupWindow) {
-      if (popupWindow && !popupWindow.closed) {
-        popupWindow.location.href = url;
-        return;
-      }
-
-      try {
-        window.location.href = url;
-      } catch (error) {
-        window.open(url, '_blank');
-      }
-    };
-
-    if (isAppleMobileDevice()) {
+    if (isAppleMobile) {
       const appleMapsUrl = `https://maps.apple.com/?daddr=${encodeURIComponent(address)}&dirflg=d`;
       window.location.href = appleMapsUrl;
       return;
     }
 
-    const popupWindow = window.open('', '_blank');
-    const openSearchUrl = function () {
-      const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
-      navigateToMapUrl(mapsUrl, popupWindow);
-    };
+    if (isMobile) {
+      const openSearchUrl = function () {
+        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+        window.location.href = mapsUrl;
+      };
 
-    if (!navigator.geolocation) {
-      openSearchUrl();
+      if (!navigator.geolocation) {
+        openSearchUrl();
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${encodeURIComponent(address)}`;
+          window.location.href = mapsUrl;
+        },
+        openSearchUrl,
+        { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
+      );
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${encodeURIComponent(address)}`;
-        navigateToMapUrl(mapsUrl, popupWindow);
-      },
-      openSearchUrl,
-      {
-        enableHighAccuracy: false,
-        timeout: 5000,
-        maximumAge: 300000,
-      }
-    );
+    window.open(`https://www.google.com/maps/dir//${encodeURIComponent(address)}`, '_blank');
   }
 
   window.ZoneAccessViewHelpers = {

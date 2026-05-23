@@ -336,6 +336,12 @@
 function updateUI() {
     if (!loginScreen) return;
     
+    // Update current user label
+    const userLabel = document.getElementById('current-user-label');
+    if (userLabel) {
+      userLabel.textContent = currentUser ? currentUser.name || currentUser.login || '' : '';
+    }
+    
     // Если пользователь вошел - скрываем экран входа
     if (currentUser) {
       if (loginScreen.style.display !== 'none') {
@@ -684,7 +690,6 @@ function updateUI() {
 
 function getAccessAuditLogItems() {
       const items = [];
-      const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
 
       Object.keys(zoneAccessData || {}).forEach((zoneNum) => {
         const addresses = Array.isArray(zoneAccessData[zoneNum]) ? zoneAccessData[zoneNum] : [];
@@ -702,11 +707,6 @@ function getAccessAuditLogItems() {
           }
 
           const timestamp = audit.updatedAt || audit.createdAt || 0;
-          const isNew = timestamp >= fiveMinutesAgo;
-
-          if (!isNew) {
-            return;
-          }
 
           items.push({
             zoneNum: String(zoneNum),
@@ -1888,6 +1888,41 @@ saveZoneAccessData();
 
     updateSelectedBundlesDisplay();
     await load();
+
+    const anySuccess = results.some(r => r.status === 'fulfilled');
+    if (anySuccess) {
+      triggerTakeGlow();
+    }
+  }
+
+  function triggerTakeGlow() {
+    const existing = document.getElementById('take-glow-overlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'take-glow-overlay';
+    document.body.appendChild(overlay);
+
+    setTimeout(() => {
+      if (overlay.parentNode) {
+        overlay.remove();
+      }
+    }, 2500);
+  }
+
+  function triggerReturnGlow() {
+    const existing = document.getElementById('return-glow-overlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'return-glow-overlay';
+    document.body.appendChild(overlay);
+
+    setTimeout(() => {
+      if (overlay.parentNode) {
+        overlay.remove();
+      }
+    }, 2500);
   }
 
   async function returnKeys(bundleIds) {
@@ -1911,6 +1946,11 @@ saveZoneAccessData();
 
     updateSelectedBundlesDisplay();
     await load();
+
+    const anySuccess = results.some(r => r.status === 'fulfilled');
+    if (anySuccess) {
+      triggerReturnGlow();
+    }
   }
 
   async function returnKey(bundleId, reload = true, quiet = false) {
@@ -2863,7 +2903,13 @@ saveZoneAccessData();
 
   function renderPeople() {
     updateAdminMode();
-    const people = getPeopleWithKeys();
+    let people = getPeopleWithKeys();
+    
+    // Non-admins can only return their own keys
+    if (!isAdmin() && currentUser) {
+      people = people.filter(name => name === currentUser.name);
+    }
+    
     peopleList.innerHTML = '';
     
     // Скрываем секцию если нет людей с ключами или не в Учёт ключей
@@ -2892,6 +2938,12 @@ saveZoneAccessData();
     if (!viewPanel || !viewPersonName || !viewKeysInfo || !viewBundles || !viewButtons) return;
 
     if (!selectedPerson) {
+      viewPanel.style.display = 'none';
+      return;
+    }
+
+    // Non-admins cannot view or return other people's keys
+    if (!isAdmin() && currentUser && selectedPerson !== currentUser.name) {
       viewPanel.style.display = 'none';
       return;
     }

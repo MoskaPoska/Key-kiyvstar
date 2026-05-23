@@ -182,7 +182,7 @@
                 <div class="address-card__actions">
                   <button class="address-card__edit-btn" data-edit-idx="${idx}" title="Редактировать">✎</button>
                   <button class="address-card__delete-btn" data-delete-idx="${idx}" title="Удалить">🗑</button>
-                  <button class="address-card__map-btn-accent">🗺️</button>
+                  <button class="address-card__map-btn-accent" data-address="${escapeHtml(addr.address)}">🗺️</button>
                   <button class="address-card__expand-btn" data-expand="${idx}" title="Подробнее">▲</button>
                 </div>
               </div>
@@ -279,11 +279,19 @@
       addressesEl.querySelectorAll('.address-card__map-btn, .address-card__map-btn-accent').forEach((btn) => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
-          const address = btn.dataset.address;
+          let address = btn.dataset.address;
+          if (!address) {
+            const card = btn.closest('.address-card');
+            const streetEl = card && card.querySelector('.address-card__street');
+            if (streetEl) {
+              address = streetEl.textContent.trim();
+            }
+          }
           if (address && window.ZoneAccessViewHelpers && typeof window.ZoneAccessViewHelpers.openAddressMap === 'function') {
             window.ZoneAccessViewHelpers.openAddressMap(address);
           }
-});
+        });
+      });
       });
     }
 
