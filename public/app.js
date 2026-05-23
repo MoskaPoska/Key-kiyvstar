@@ -1167,10 +1167,10 @@ function showValidationErrors(errors, options = {}) {
 
       const openDirections = (lat, lng) => {
         if (isAndroid) {
-          const fallbackUrl = encodeURIComponent(`https://www.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${encodeURIComponent(address)}`);
-          window.location.href = `intent://maps.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${encodeURIComponent(address)}#Intent;scheme=https;action=android.intent.action.VIEW;package=com.google.android.apps.maps;S.browser_fallback_url=${fallbackUrl};end`;
+          const fallbackUrl = encodeURIComponent(`https://www.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${encodeURIComponent(address)}&dir_action=navigate`);
+          window.location.href = `intent://maps.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${encodeURIComponent(address)}&dir_action=navigate#Intent;scheme=https;action=android.intent.action.VIEW;package=com.google.android.apps.maps;S.browser_fallback_url=${fallbackUrl};end`;
         } else {
-          window.open(`https://www.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${encodeURIComponent(address)}`, '_blank');
+          window.open(`https://www.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${encodeURIComponent(address)}&dir_action=navigate`, '_blank');
         }
       };
 
