@@ -57,7 +57,7 @@
 
     const ua = String((navigator && navigator.userAgent) || '');
     const isAppleMobile = /iPhone|iPad|iPod/i.test(ua);
-    const isMobile = isAppleMobile || /Android/i.test(ua);
+    const isAndroid = /Android/i.test(ua);
 
     if (isAppleMobile) {
       const appleMapsUrl = `https://maps.apple.com/?daddr=${encodeURIComponent(address)}&dirflg=d`;
@@ -65,31 +65,32 @@
       return;
     }
 
-    if (isMobile) {
-      const openSearchUrl = function () {
-        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
-        window.location.href = mapsUrl;
-      };
+    const openSearchUrl = function () {
+      const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+      window.location.href = mapsUrl;
+    };
 
-      if (!navigator.geolocation) {
-        openSearchUrl();
-        return;
+    const openDirections = (lat, lng) => {
+      if (isAndroid) {
+        const fallbackUrl = encodeURIComponent(`https://www.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${encodeURIComponent(address)}`);
+        window.location.href = `intent://maps.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${encodeURIComponent(address)}#Intent;scheme=https;action=android.intent.action.VIEW;package=com.google.android.apps.maps;S.browser_fallback_url=${fallbackUrl};end`;
+      } else {
+        window.open(`https://www.google.com/maps/dir//${encodeURIComponent(address)}`, '_blank');
       }
+    };
 
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-          const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${encodeURIComponent(address)}`;
-          window.location.href = mapsUrl;
-        },
-        openSearchUrl,
-        { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
-      );
+    if (!navigator.geolocation) {
+      openSearchUrl();
       return;
     }
 
-    window.open(`https://www.google.com/maps/dir//${encodeURIComponent(address)}`, '_blank');
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        openDirections(position.coords.latitude, position.coords.longitude);
+      },
+      openSearchUrl,
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
+    );
   }
 
   window.ZoneAccessViewHelpers = {

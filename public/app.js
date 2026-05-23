@@ -1117,83 +1117,79 @@ function showValidationErrors(errors, options = {}) {
      }
    }
 
-   function openAddressMap(address) {
-     if (!address) {
-       alert('Адрес не найден');
-       return;
-     }
+    function openAddressMap(address) {
+      if (!address) {
+        alert('Адрес не найден');
+        return;
+      }
 
-     if (isAppleMobileDevice()) {
-       const appleMapsUrl = `https://maps.apple.com/?daddr=${encodeURIComponent(address)}&dirflg=d`;
-       const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
-       let appSwitched = false;
-       let fallbackTimer = null;
+      const ua = String((navigator && navigator.userAgent) || '');
+      const isAppleMobile = /iPhone|iPad|iPod/i.test(ua);
 
-       const markSwitched = () => {
-         appSwitched = true;
-       };
+      if (isAppleMobile) {
+        const appleMapsUrl = `https://maps.apple.com/?daddr=${encodeURIComponent(address)}&dirflg=d`;
+        const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+        let appSwitched = false;
+        let fallbackTimer = null;
 
-       const cleanupFallback = () => {
-         if (fallbackTimer) {
-           clearTimeout(fallbackTimer);
-           fallbackTimer = null;
-         }
-         window.removeEventListener('pagehide', markSwitched);
-         document.removeEventListener('visibilitychange', handleVisibilityChange);
-       };
+        const markSwitched = () => { appSwitched = true; };
+        const cleanupFallback = () => {
+          if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
+          window.removeEventListener('pagehide', markSwitched);
+          document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+        const handleVisibilityChange = () => {
+          if (document.visibilityState === 'hidden') { markSwitched(); cleanupFallback(); }
+        };
 
-       const handleVisibilityChange = () => {
-         if (document.visibilityState === 'hidden') {
-           markSwitched();
-           cleanupFallback();
-         }
-       };
+        window.addEventListener('pagehide', markSwitched, { once: true });
+        document.addEventListener('visibilitychange', handleVisibilityChange);
 
-       window.addEventListener('pagehide', markSwitched, { once: true });
-       document.addEventListener('visibilitychange', handleVisibilityChange);
+        fallbackTimer = setTimeout(() => {
+          if (!appSwitched && document.visibilityState === 'visible') {
+            cleanupFallback();
+            window.location.href = googleMapsUrl;
+            return;
+          }
+          cleanupFallback();
+        }, 1400);
 
-       fallbackTimer = setTimeout(() => {
-         if (!appSwitched && document.visibilityState === 'visible') {
-           cleanupFallback();
-           window.location.href = googleMapsUrl;
-           return;
-         }
-         cleanupFallback();
-       }, 1400);
+        window.location.href = appleMapsUrl;
+        return;
+      }
 
-       window.location.href = appleMapsUrl;
-       return;
-     }
+      const isAndroid = /Android/i.test(ua);
 
-     const popupWindow = window.open('', '_blank');
-     const openSearchUrl = () => {
-       const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
-       navigateToMapUrl(mapsUrl, popupWindow);
-     };
+      const openSearchUrl = () => {
+        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+        window.location.href = mapsUrl;
+      };
 
-     if (!navigator.geolocation) {
-       openSearchUrl();
-       return;
-     }
+      const openDirections = (lat, lng) => {
+        if (isAndroid) {
+          const fallbackUrl = encodeURIComponent(`https://www.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${encodeURIComponent(address)}`);
+          window.location.href = `intent://maps.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${encodeURIComponent(address)}#Intent;scheme=https;action=android.intent.action.VIEW;package=com.google.android.apps.maps;S.browser_fallback_url=${fallbackUrl};end`;
+        } else {
+          window.open(`https://www.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${encodeURIComponent(address)}`, '_blank');
+        }
+      };
 
-     navigator.geolocation.getCurrentPosition(
-       (position) => {
-         const lat = position.coords.latitude;
-         const lng = position.coords.longitude;
-         const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${encodeURIComponent(address)}`;
-         navigateToMapUrl(mapsUrl, popupWindow);
-       },
-       (error) => {
-         console.warn('Геолокация не доступна:', error);
-         openSearchUrl();
-       },
-       {
-         enableHighAccuracy: false,
-         timeout: 5000,
-         maximumAge: 300000,
-       }
-     );
-   }
+      if (!navigator.geolocation) {
+        openSearchUrl();
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          openDirections(position.coords.latitude, position.coords.longitude);
+        },
+        () => {
+          console.warn('Геолокация не доступна');
+          openSearchUrl();
+        },
+        { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
+      );
+    }
 
     function showZoneAccessView() {
      const addresses = zoneAccessData[currentZoneNum] || [];
